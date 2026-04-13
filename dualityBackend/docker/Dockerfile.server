@@ -1,0 +1,26 @@
+FROM node:18-slim
+
+WORKDIR /app
+
+# Install system dependencies if any
+RUN apt-get update && apt-get install -y \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --production
+
+# Copy source code
+COPY . .
+
+# Environment defaults
+ENV NODE_ENV=production
+ENV START_WORKER=false
+ENV PORT=5001
+
+EXPOSE 5001
+
+CMD ["node", "src/server.js"]

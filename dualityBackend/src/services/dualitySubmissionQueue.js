@@ -1,59 +1,66 @@
+const { Worker } = require('bullmq');
+const connection = require('../config/redis');
 const getDualitySubmission = require('../models/duality/DualitySubmission');
 const getDualityQuestion = require('../models/duality/DualityQuestion');
 const getDualityUser = require('../models/duality/DualityUser');
 const { runTestCases } = require('./execution.service');
 const { broadcastDualitySubmissionUpdate } = require('../socket');
+const { SUBMISSION_QUEUE_NAME } = require('../queues/submission.queue');
 
-class DualitySubmissionQueue {
+/**
+ * BullMQ Worker for processing Duality submissions
+ */
+class DualitySubmissionWorker {
     constructor() {
-        this.isWorking = false;
-        this.concurrency = 2;
-        this.activeCount = 0;
-        this.pollInterval = 1000;
+        this.worker = null;
     }
 
+    /**
+     * Start the BullMQ worker
+     */
     start() {
-        if (this.isWorking) return;
-        this.isWorking = true;
-        console.log(`[DualityQueue] Worker started. Concurrency: ${this.concurrency}`);
-        this.work();
-    }
+        if (this.worker) return;
 
-    async work() {
-        if (!this.isWorking) return;
+        console.log(`[DualityWorker] Starting BullMQ worker on queue: ${SUBMISSION_QUEUE_NAME}`);
 
-        try {
-            if (this.activeCount < this.concurrency) {
+        this.worker = new Worker(
+            SUBMISSION_QUEUE_NAME,
+            async (job) => {
+                const { submissionId } = job.data;
                 const DualitySubmission = getDualitySubmission();
-                const submission = await DualitySubmission.findOneAndUpdate(
-                    { status: 'pending' },
-                    { status: 'processing' },
-                    { new: true, sort: { createdAt: 1 } }
-                );
+                const submission = await DualitySubmission.findById(submissionId);
 
-                if (submission) {
-                    this.activeCount++;
-                    this.processSubmission(submission).finally(() => {
-                        this.activeCount--;
-                        setImmediate(() => this.work());
-                    });
-
-                    if (this.activeCount < this.concurrency) {
-                        setImmediate(() => this.work());
-                        return;
-                    }
+                if (!submission) {
+                    console.error(`[DualityWorker] Submission ${submissionId} not found`);
+                    return;
                 }
-            }
-        } catch (error) {
-            console.error('[DualityQueue] Error in worker loop:', error);
-        }
 
-        setTimeout(() => this.work(), this.pollInterval);
+                // Mark as processing
+                submission.status = 'processing';
+                await submission.save();
+
+                await this.processSubmission(submission);
+            },
+            {
+                connection,
+                concurrency: parseInt(process.env.QUEUE_CONCURRENCY) || 4,
+            }
+        );
+
+        this.worker.on('completed', (job) => {
+            console.log(`[DualityWorker] Job ${job.id} (Submission ${job.data.submissionId}) completed`);
+        });
+
+        this.worker.on('failed', (job, err) => {
+            console.error(`[DualityWorker] Job ${job.id} failed:`, err);
+        });
+
+        console.log(`[DualityWorker] Worker ready. Concurrency: ${this.worker.opts.concurrency}`);
     }
 
     async processSubmission(submission) {
         const submissionId = submission._id;
-        console.log(`[DualityQueue] Processing submission: ${submissionId}`);
+        console.log(`[DualityWorker] Processing submission: ${submissionId}`);
 
         try {
             const DualityQuestion = getDualityQuestion();
@@ -69,7 +76,7 @@ class DualitySubmissionQueue {
                 expectedOutput: tc.output,
             }));
 
-            // Run test cases via Docker (reusing existing execution service)
+            // Run test cases via Docker
             const result = await runTestCases(submission.code, submission.language, testCases);
 
             // Determine status
@@ -92,8 +99,8 @@ class DualitySubmissionQueue {
                 status = 'runtime_error';
             }
 
-            const avgTime = result.results.reduce((sum, r) => sum + r.executionTime, 0) / result.results.length;
-            const maxMem = Math.max(...result.results.map(r => r.memoryUsed));
+            const avgTime = result.results.reduce((sum, r) => sum + r.executionTime, 0) / (result.results.length || 1);
+            const maxMem = Math.max(...result.results.map(r => r.memoryUsed), 0);
 
             const DualitySubmission = getDualitySubmission();
             await DualitySubmission.findByIdAndUpdate(submissionId, {
@@ -110,6 +117,7 @@ class DualitySubmissionQueue {
             }
 
             // Broadcast real-time update
+            // NOTE: This broadcast only works if this worker shares a Redis Pub/Sub backplane with the API server
             broadcastDualitySubmissionUpdate(submission.user.toString(), {
                 submissionId: submissionId,
                 question: submission.question,
@@ -121,10 +129,10 @@ class DualitySubmissionQueue {
                 submittedAt: submission.submittedAt,
             });
 
-            console.log(`[DualityQueue] Finished submission: ${submissionId} (Status: ${status})`);
+            console.log(`[DualityWorker] Finished submission: ${submissionId} (Status: ${status})`);
 
         } catch (error) {
-            console.error(`[DualityQueue] Failed to process submission ${submissionId}:`, error);
+            console.error(`[DualityWorker] Failed to process submission ${submissionId}:`, error);
             const DualitySubmission = getDualitySubmission();
             await DualitySubmission.findByIdAndUpdate(submissionId, {
                 status: 'runtime_error',
@@ -168,4 +176,4 @@ class DualitySubmissionQueue {
     }
 }
 
-module.exports = new DualitySubmissionQueue();
+module.exports = new DualitySubmissionWorker();

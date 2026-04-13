@@ -1,21 +1,37 @@
+const { Emitter } = require('@socket.io/redis-emitter');
+const connection = require('./config/redis');
+
 let io = null;
+let emitter = null;
 
 /**
- * Initialize Socket.IO instance
+ * Initialize Socket.IO instance (for API Server)
  */
 const initializeSocket = (socketIO) => {
     io = socketIO;
-    console.log('Socket.IO initialized');
+    console.log('[Socket] Socket.IO initialized for API server');
 };
 
-const activeDualityUsers = new Map(); // userId -> socketId
+/**
+ * Initialize Redis Emitter (for Standalone Workers)
+ * This allows the worker to broadcast events without being a real socket server.
+ */
+const initializeEmitter = () => {
+    if (!emitter) {
+        emitter = new Emitter(connection);
+        console.log('[Socket] Redis Emitter initialized for Worker');
+    }
+    return emitter;
+};
+
+const activeDualityUsers = new Map(); // userId -> socketId (Only available on API nodes)
 
 /**
  * Add a Duality user session
  */
 const addDualityUser = (userId, socketId) => {
     activeDualityUsers.set(userId.toString(), socketId);
-    console.log(`Duality user session registered: ${userId} -> ${socketId}`);
+    console.log(`[Socket] Duality user session registered: ${userId} -> ${socketId}`);
 };
 
 /**
@@ -25,7 +41,7 @@ const removeDualityUser = (socketId) => {
     for (const [userId, sid] of activeDualityUsers.entries()) {
         if (sid === socketId) {
             activeDualityUsers.delete(userId);
-            console.log(`Duality user session removed: ${userId}`);
+            console.log(`[Socket] Duality user session removed: ${userId}`);
             break;
         }
     }
@@ -33,34 +49,63 @@ const removeDualityUser = (socketId) => {
 
 /**
  * Broadcast submission update to a specific Duality user
- * @param {string} userId - The Duality user ID
- * @param {object} data - The submission result data
  */
 const broadcastDualitySubmissionUpdate = (userId, data) => {
-    if (!io) return;
-    // Try to send to specific user socket
-    const socketId = activeDualityUsers.get(userId.toString());
-    if (socketId) {
-        io.to(socketId).emit('duality:submission:update', data);
+    const eventName = 'duality:submission:update';
+    
+    if (io) {
+        // Direct broadcast from API server
+        // Try to send to specific user socket if it's on this node
+        const socketId = activeDualityUsers.get(userId.toString());
+        if (socketId) {
+            io.to(socketId).emit(eventName, data);
+        }
+        // Also broadcast globally (cross-instance via Redis adapter)
+        io.emit(eventName, data);
+    } else {
+        // Broadcast from Worker via Redis Emitter
+        const redisEmitter = initializeEmitter();
+        redisEmitter.emit(eventName, data);
     }
-    // Also broadcast to all duality clients (they filter client-side)
-    io.emit('duality:submission:update', data);
-    console.log(`Duality submission update broadcasted for user: ${userId}`);
+    
+    console.log(`[Socket] Duality submission update broadcasted for user: ${userId}`);
 };
 
 /**
  * Broadcast question list update to all Duality clients
  */
 const broadcastDualityQuestionUpdate = () => {
-    if (!io) return;
-    io.emit('duality:question:update', { timestamp: new Date() });
-    console.log('Duality question update broadcasted');
+    const eventName = 'duality:question:update';
+    const payload = { timestamp: new Date() };
+
+    if (io) {
+        io.emit(eventName, payload);
+    } else {
+        const redisEmitter = initializeEmitter();
+        redisEmitter.emit(eventName, payload);
+    }
+    console.log('[Socket] Duality question update broadcasted');
+};
+
+/**
+ * Legacy broadcast for compatibility
+ */
+const broadcastLeaderboardUpdate = () => {
+    const eventName = 'leaderboard:update';
+    if (io) {
+        io.emit(eventName);
+    } else {
+        const redisEmitter = initializeEmitter();
+        redisEmitter.emit(eventName);
+    }
 };
 
 module.exports = {
     initializeSocket,
+    initializeEmitter,
     addDualityUser,
     removeDualityUser,
     broadcastDualitySubmissionUpdate,
     broadcastDualityQuestionUpdate,
+    broadcastLeaderboardUpdate,
 };

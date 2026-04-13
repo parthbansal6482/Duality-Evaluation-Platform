@@ -1,14 +1,22 @@
-# DSA Contest Platform - Backend Server
+# Duality Evaluation Platform - Backend
 
-Backend API for the DSA Contest Platform built with Node.js, Express, and MongoDB.
+The core API for the Duality Evaluation Platform. This backend is designed for high-concurrency college evaluations, supporting 200–500+ students via a distributed architecture.
+
+## Architecture
+
+This platform uses a **3-tier distributed architecture** for maximum stability under heavy load:
+
+1.  **Frontend (Vercel)**: React-based student and admin interface.
+2.  **API Server (Dedicated Node.js)**: Handles authentication, database, and real-time Socket.IO synchronization.
+3.  **Execution Workers (Docker Host)**: Isolated servers that process code execution jobs from a Redis queue.
 
 ## Features
 
-- 🔐 JWT-based authentication
-- 👥 Team registration with 2-3 member validation
-- ✅ Admin approval workflow for teams
-- 🔒 Role-based access control (Admin/Team)
-- ✨ Input validation and error handling
+- 🔐 **Google OAuth**: Integrated `@bmu.edu.in` authentication.
+- ⚡ **Asynchronous Execution**: Submissions are queued via **Redis & BullMQ** to prevent API hangs.
+- 🐳 **Isolated Judge**: Dockerized code execution for Python, C, C++, and Java.
+- 📊 **Real-time Leaderboard**: Instant updates via Socket.IO with Redis adapter.
+- 🛡️ **Rate Limiting**: Distributed rate limiting to prevent system abuse.
 
 ## Prerequisites
 
@@ -33,26 +41,34 @@ MONGODB_URI=your_mongodb_connection_string
 JWT_SECRET=your_secret_key
 ```
 
-## Running the Server
+## Deployment
 
-### Development mode (with auto-reload):
+### 1. Unified Deployment (Local/Small Lab)
+Runs the API and the Worker in the same process. Good for testing or batches < 50 students.
 ```bash
+# Set .env: START_WORKER=true and NODE_ENV=development
 npm run dev
 ```
 
-### Production mode:
+### 2. Distributed Deployment (Recommended for Batch Evaluations)
+Scale the API and Workers independently.
+
+#### API Server
 ```bash
-npm start
+export START_WORKER=false
+node src/server.js
 ```
 
-### Create initial admin account:
+#### Execution Worker
 ```bash
-npm run seed
+node src/worker.js
 ```
 
-This will create an admin account with:
-- Email: `admin@contest.com`
-- Password: `admin123`
+### 3. Docker Compose (Quick Start)
+Spins up MongoDB, Redis, API, and Worker automatically.
+```bash
+docker-compose up --build
+```
 
 ## API Endpoints
 
@@ -136,32 +152,31 @@ Headers: Authorization: Bearer <admin_token>
 ## Project Structure
 
 ```
-server/
+dualityBackend/
 ├── src/
 │   ├── config/
-│   │   └── database.js          # MongoDB connection
-│   ├── models/
-│   │   ├── Admin.js             # Admin model
-│   │   └── Team.js              # Team model
+│   │   ├── practiceDatabase.js  # MongoDB connection
+│   │   └── redis.js             # Redis connection (BullMQ)
+│   ├── queues/
+│   │   └── submission.queue.js  # BullMQ Producer
+│   ├── services/
+│   │   ├── dualitySubmissionQueue.js # BullMQ Worker
+│   │   └── execution.service.js      # Docker Execution
 │   ├── middleware/
-│   │   ├── auth.js              # JWT authentication
-│   │   └── validation.js        # Request validation
+│   │   ├── dualityAuth.js       # Student/Admin Auth
+│   │   └── rateLimiter.js       # Redis-based Rate Limiting
 │   ├── routes/
-│   │   ├── admin.routes.js
-│   │   ├── team.routes.js
-│   │   └── teamManagement.routes.js
+│   │   └── duality/             # Duality Evaluation Routes
 │   ├── controllers/
-│   │   ├── admin.controller.js
-│   │   ├── team.controller.js
-│   │   └── teamManagement.controller.js
-│   ├── utils/
-│   │   ├── jwt.js               # JWT utilities
-│   │   └── seed.js              # Database seeding
-│   └── server.js                # Main server file
-├── .env
-├── .env.example
-├── .gitignore
-└── package.json
+│   │   └── duality/             # Logic for auth, questions, submissions
+│   ├── server.js                # API Entry Point
+│   └── worker.js                # Worker Entry Point
+├── docker/
+│   ├── Dockerfile.server        # API Server Image
+│   ├── Dockerfile.worker        # Worker Image
+│   └── build-executor.sh        # Script to build judge image
+├── docker-compose.yml           # Full stack orchestrator
+└── .env.example
 ```
 
 ## Testing with cURL

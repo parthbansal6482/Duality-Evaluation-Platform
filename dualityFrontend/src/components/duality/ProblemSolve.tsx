@@ -3,6 +3,7 @@ import { ArrowLeft, Play, CheckCircle2, XCircle, Code2, FileText, Clock, RotateC
 import { getDualityQuestion, submitDualityCode, runDualityCode, getDualitySettings } from '../../services/duality.service';
 import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+import { dualitySocket } from '../../services/socket.service';
 
 interface TestCase {
   input: string;
@@ -59,6 +60,7 @@ export function ProblemSolve({
   const [testResults, setTestResults] = useState<TestCase[] | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [settings, setSettings] = useState<{ isPasteEnabled?: boolean }>({ isPasteEnabled: true });
   const dualityUserId = getDualityUserId();
@@ -94,7 +96,32 @@ export function ProblemSolve({
       }
     };
     fetchData();
-  }, [problemId]);
+
+    // Listen for real-time submission updates
+    dualitySocket.connect();
+    
+    const handleSubmissionUpdate = (data: any) => {
+      // Only process if it's our active submission
+      if (activeSubmissionId && data.submissionId === activeSubmissionId) {
+        setTestResults(data.testResults || data.results);
+        setIsSubmitting(false);
+        setActiveSubmissionId(null);
+
+        // Show success/failure alert
+        if (data.status === 'accepted') {
+          alert('Solution accepted! You passed all test cases.');
+        } else {
+          alert(`Solution failed. Status: ${data.status.replace(/_/g, ' ')}`);
+        }
+      }
+    };
+
+    dualitySocket.on('duality:submission:update', handleSubmissionUpdate);
+
+    return () => {
+      dualitySocket.off('duality:submission:update', handleSubmissionUpdate);
+    };
+  }, [problemId, activeSubmissionId]);
 
   const handleLanguageChange = (lang: Language) => {
     setSelectedLanguage(lang);
@@ -133,21 +160,15 @@ export function ProblemSolve({
     try {
       const result = await submitDualityCode(problemId, code, selectedLanguage);
       if (result.success && result.data) {
-        setTestResults(result.data.results);
-
-        // Show success/failure alert
-        if (result.data.status === 'accepted') {
-          alert('Solution accepted! You passed all test cases.');
-        } else {
-          alert(`Solution failed. Status: ${result.data.status}`);
-        }
+        setActiveSubmissionId(result.data.submissionId);
+        // The results will be handled by the Socket event listener
       } else {
+        setIsSubmitting(false);
         alert('Failed to submit code: ' + (result.message || 'Unknown error'));
       }
     } catch (error) {
       console.error('Submission error:', error);
       alert('Failed to submit code');
-    } finally {
       setIsSubmitting(false);
     }
   };

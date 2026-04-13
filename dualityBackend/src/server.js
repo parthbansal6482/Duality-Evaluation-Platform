@@ -3,6 +3,8 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
+const { createAdapter } = require('@socket.io/redis-adapter');
+const connection = require('./config/redis');
 const { connectPracticeDB } = require('./config/practiceDatabase');
 
 // Debug log for recently added question
@@ -55,10 +57,20 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Initialize Socket.IO with the same CORS options
+// Initialize Socket.IO with the same CORS options and Redis adapter
 const io = new Server(server, {
     cors: corsOptions,
 });
+
+// Use Redis adapter for horizontal scaling
+const pubClient = connection;
+const subClient = connection.duplicate();
+
+subClient.on('error', (err) => {
+    console.error('[Redis Sub] Connection error:', err);
+});
+
+io.adapter(createAdapter(pubClient, subClient));
 
 // Initialize socket utility
 initializeSocket(io);
@@ -123,9 +135,14 @@ const startServer = async () => {
             console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
             console.log(`WebSocket server ready on port ${PORT}`);
 
-            // Start background workers for code execution
-            const dualitySubmissionQueue = require('./services/dualitySubmissionQueue');
-            dualitySubmissionQueue.start();
+            // Start background workers for code execution if configured
+            if (process.env.START_WORKER === 'true' || process.env.NODE_ENV === 'development') {
+                const dualitySubmissionQueue = require('./services/dualitySubmissionQueue');
+                dualitySubmissionQueue.start();
+                console.log('[API] Local background worker started');
+            } else {
+                console.log('[API] Running in API-only mode (Distributed Worker expected)');
+            }
         });
     } catch (error) {
         console.error('Failed to start server:', error.message);

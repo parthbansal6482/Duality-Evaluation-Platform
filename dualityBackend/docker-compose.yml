@@ -1,35 +1,51 @@
 version: '3.8'
 
 services:
-  code-executor:
+  # 1. MongoDB Database
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - duality_mongo_data:/data/db
+
+  # 2. Redis coordination hub
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+
+  # 3. Dedicated API Server
+  api-server:
+    build: 
+      context: .
+      dockerfile: docker/Dockerfile.server
+    environment:
+      - NODE_ENV=production
+      - MONGODB_PRACTICE_URI=mongodb://mongodb:27017/duality_practice
+      - REDIS_URL=redis://redis:6379
+      - START_WORKER=false # API Server stays lightweight, only handles IO
+    ports:
+      - "5001:5001"
+    depends_on:
+      - mongodb
+      - redis
+
+  # 4. Isolated Execution Worker
+  execution-worker:
     build:
-      context: ./docker
-      dockerfile: Dockerfile
-    image: code-executor:latest
-    container_name: code-executor
-    # Security settings
-    security_opt:
-      - no-new-privileges:true
-    # Resource limits
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 256M
-        reservations:
-          cpus: '0.5'
-          memory: 128M
-    # Network isolation
-    network_mode: none
-    # Read-only root filesystem (except /code and /tmp)
-    read_only: true
-    tmpfs:
-      - /tmp:size=100M,mode=1777
-      - /code:size=50M,mode=1777
-    # Prevent privilege escalation
-    cap_drop:
-      - ALL
-    # Process limits
-    pids_limit: 50
-    # Auto-remove after stop
-    restart: "no"
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # Required to run sibling Docker containers
+    environment:
+      - NODE_ENV=production
+      - MONGODB_PRACTICE_URI=mongodb://mongodb:27017/duality_practice
+      - REDIS_URL=redis://redis:6379
+      - QUEUE_CONCURRENCY=8 # Dedicated worker handles high compute load
+    depends_on:
+      - mongodb
+      - redis
+
+volumes:
+  duality_mongo_data:

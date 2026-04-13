@@ -3,6 +3,7 @@ const getDualityQuestion = require('../../models/duality/DualityQuestion');
 const getDualityUser = require('../../models/duality/DualityUser');
 const { runTestCases } = require('../../services/execution.service');
 const { broadcastDualitySubmissionUpdate } = require('../../socket');
+const { addSubmissionToQueue } = require('../../queues/submission.queue');
 
 const getRunnableTestCases = (question, limit = null) => {
     const cases = (question.testCases || []).map((tc, i) => ({
@@ -71,116 +72,38 @@ exports.submitCode = async (req, res) => {
             });
         }
 
-        // 2. Execute code synchronously
-        const driverCode = question.driverCode ? question.driverCode[language] : '';
-        const result = await runTestCases(code, language, allTestCases, driverCode);
-
-        // 3. Determine status
-        let status = 'accepted';
-        if (result.passedTests < result.totalTests) {
-            status = 'wrong_answer';
-        }
-
-        const hasTimeout = result.results.some(r => r.error && r.error.includes('timeout'));
-        const hasMLE = result.results.some(r => r.exitCode === 137);
-
-        if (hasTimeout) {
-            status = 'time_limit_exceeded';
-        } else if (hasMLE) {
-            status = 'memory_limit_exceeded';
-        }
-
-        const hasRuntimeError = result.results.some(r => r.error && !r.error.includes('timeout') && r.exitCode !== 137);
-        if (hasRuntimeError && (status === 'accepted' || status === 'wrong_answer')) {
-            status = 'runtime_error';
-        }
-
-        const avgTime = result.results.length > 0 ? (result.results.reduce((sum, r) => sum + (r.executionTime || 0), 0) / result.results.length) : 0;
-        const maxMem = result.results.length > 0 ? Math.max(...result.results.map(r => r.memoryUsed || 0)) : 0;
-
-        // Ensure we don't save NaN
-        const finalAvgTime = isNaN(avgTime) ? 0 : Math.round(avgTime);
-        const finalMaxMem = isNaN(maxMem) ? 0 : maxMem;
-
-        // 4. Save to Database
-        console.log(`[DualitySubmission] Saving submission for user ${userId}, question ${questionId}, status: ${status}`);
+        // 2. Create Pending Submission
         const submission = await DualitySubmission.create({
             user: userId,
             question: questionId,
             code,
             language,
-            status,
-            totalTestCases: result.totalTests || 0,
-            testCasesPassed: result.passedTests || 0,
-            executionTime: finalAvgTime,
-            memoryUsed: finalMaxMem,
-            testResults: result.results,
+            status: 'pending',
+            totalTestCases: allTestCases.length,
+            testCasesPassed: 0,
+            executionTime: 0,
+            memoryUsed: 0,
+            testResults: [],
         });
 
-        // 5. Update User Stats if Accepted
-        if (status === 'accepted') {
-            const previousAccepted = await DualitySubmission.findOne({
-                user: userId,
-                question: questionId,
-                status: 'accepted',
-                _id: { $ne: submission._id },
-            });
-
-            if (!previousAccepted) {
-                const difficultyField = {
-                    'Easy': 'easySolved',
-                    'Medium': 'mediumSolved',
-                    'Hard': 'hardSolved',
-                }[question.difficulty];
-
-                const update = { $inc: { totalSolved: 1 } };
-                if (difficultyField) update.$inc[difficultyField] = 1;
-
-                await DualityUser.findByIdAndUpdate(userId, update);
-            }
-        }
-
-        // 6. Broadcast Update - Unify field names with frontend service types
-        broadcastDualitySubmissionUpdate(userId, {
-            submissionId: submission._id,
-            status,
-            totalTestCases: result.totalTests,
-            testCasesPassed: result.passedTests,
-            executionTime: finalAvgTime,
-            memoryUsed: finalMaxMem,
-            results: result.results.map(r => ({
-                passed: r.passed,
-                input: r.input,
-                expectedOutput: r.expectedOutput,
-                actualOutput: r.actualOutput,
-                error: r.error
-            })),
-            submittedAt: submission.submittedAt,
-            user: { id: userId, name: req.dualityUser.name },
-            question: { id: questionId, title: question.title }
-        });
+        // 3. Push to Redis Queue
+        await addSubmissionToQueue(submission._id.toString());
 
         res.status(201).json({
             success: true,
-            message: 'Submission evaluated successfully',
+            message: 'Submission received and added to queue',
             data: {
                 submissionId: submission._id,
-                status,
-                totalTests: result.totalTests,
-                passedTests: result.passedTests,
-                results: result.results.map(r => ({
-                    passed: r.passed,
-                    input: r.input,
-                    expectedOutput: r.expectedOutput,
-                    actualOutput: r.actualOutput,
-                    error: r.error
-                }))
+                status: 'pending',
             },
         });
     } catch (error) {
-        console.error('Submission error stack:', error.stack);
         console.error('Submission error:', error);
-        res.status(500).json({ success: false, message: 'Error processing submission', error: error.message });
+        res.status(500).json({
+            success: false,
+            message: 'Error processing submission',
+            error: error.message,
+        });
     }
 };
 
@@ -330,5 +253,35 @@ exports.getAllSubmissions = async (req, res) => {
     } catch (error) {
         console.error('Get all submissions error:', error);
         res.status(500).json({ success: false, message: 'Error fetching submissions', error: error.message });
+    }
+};
+
+/**
+ * Get system/queue status (Admin only)
+ * GET /api/duality/submissions/status
+ */
+exports.getQueueStatus = async (req, res) => {
+    try {
+        const { submissionQueue } = require('../../queues/submission.queue');
+        const [waiting, active, completed, failed] = await Promise.all([
+            submissionQueue.getWaitingCount(),
+            submissionQueue.getActiveCount(),
+            submissionQueue.getCompletedCount(),
+            submissionQueue.getFailedCount(),
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                waiting,
+                active,
+                completed,
+                failed,
+                total: waiting + active + completed + failed
+            }
+        });
+    } catch (error) {
+        console.error('Queue status error:', error);
+        res.status(500).json({ success: false, message: 'Error fetching queue status' });
     }
 };
