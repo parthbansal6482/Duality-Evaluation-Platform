@@ -121,8 +121,8 @@ Run structured team contests with timed rounds, live standings, and tactical gam
 
 1. **Clone & Install**:
    ```bash
-   git clone https://github.com/parthbansal6482/DSA-Coding-Contest-Platform.git
-   cd DSA-Coding-Contest-Platform
+    git clone <your-new-repo-url>
+    cd <project-directory>
    npm install
    cd server && npm install
    cd ..
@@ -176,4 +176,4 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 This project is licensed under the ISC License.
 
 ## 👨‍💻 Author
-**Parth Bansal** - [@parthbansal6482](https://github.com/parthbansal6482)
+**Author**
