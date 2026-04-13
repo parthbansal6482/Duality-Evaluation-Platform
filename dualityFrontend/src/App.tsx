@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GraduationCap, ClipboardList } from 'lucide-react';
 
-// Assignments (Duality practice) imports
+// Individual Assignments & Evaluation (Duality) imports
 import { DualityAuth } from './components/duality/DualityAuth';
 import { StudentDashboard } from './components/duality/StudentDashboard';
 import { AdminDashboard as AssignmentsAdminDashboard } from './components/duality/AdminDashboard';

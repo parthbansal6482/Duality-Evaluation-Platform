@@ -22,7 +22,7 @@ services:
       dockerfile: docker/Dockerfile.server
     environment:
       - NODE_ENV=production
-      - MONGODB_PRACTICE_URI=mongodb://mongodb:27017/duality_practice
+      - MONGODB_URI=mongodb://mongodb:27017/duality
       - REDIS_URL=redis://redis:6379
       - START_WORKER=false # API Server stays lightweight, only handles IO
     ports:
@@ -40,7 +40,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock # Required to run sibling Docker containers
     environment:
       - NODE_ENV=production
-      - MONGODB_PRACTICE_URI=mongodb://mongodb:27017/duality_practice
+      - MONGODB_URI=mongodb://mongodb:27017/duality
       - REDIS_URL=redis://redis:6379
       - QUEUE_CONCURRENCY=8 # Dedicated worker handles high compute load
     depends_on:

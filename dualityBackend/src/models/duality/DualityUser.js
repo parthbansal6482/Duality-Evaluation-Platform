@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const dualityUserSchema = new mongoose.Schema({
     googleId: {
@@ -63,7 +63,7 @@ const dualityUserSchema = new mongoose.Schema({
 let DualityUser;
 const getModel = () => {
     if (!DualityUser) {
-        const conn = getPracticeConnection();
+        const conn = getDBConnection();
         DualityUser = conn.model('DualityUser', dualityUserSchema);
     }
     return DualityUser;

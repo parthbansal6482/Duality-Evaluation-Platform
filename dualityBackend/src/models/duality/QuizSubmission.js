@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const answerSchema = new mongoose.Schema(
   {
@@ -72,7 +72,7 @@ quizSubmissionSchema.index({ quiz: 1, student: 1 }, { unique: true });
 let QuizSubmission;
 const getModel = () => {
   if (!QuizSubmission) {
-    const conn = getPracticeConnection();
+    const conn = getDBConnection();
     QuizSubmission = conn.model('QuizSubmission', quizSubmissionSchema);
   }
   return QuizSubmission;

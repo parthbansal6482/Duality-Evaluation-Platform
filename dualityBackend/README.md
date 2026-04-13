@@ -155,7 +155,7 @@ Headers: Authorization: Bearer <admin_token>
 dualityBackend/
 ├── src/
 │   ├── config/
-│   │   ├── practiceDatabase.js  # MongoDB connection
+│   │   ├── database.js          # MongoDB connection
 │   │   └── redis.js             # Redis connection (BullMQ)
 │   ├── queues/
 │   │   └── submission.queue.js  # BullMQ Producer
@@ -208,8 +208,7 @@ curl -X POST http://localhost:5000/api/admin/login \
 |----------|-------------|---------|
 | `NODE_ENV` | Environment mode (`development`/`production`) | `development` |
 | `PORT` | Server port | `5001` |
-| `MONGODB_URI` | MongoDB URI for Contest Platform | - |
-| `MONGODB_PRACTICE_URI` | MongoDB URI for Practice Platform | - |
+| `MONGODB_URI` | MongoDB URI for Duality Evaluation Platform | - |
 | `JWT_SECRET` | Secret key for JWT | - |
 | `JWT_EXPIRE` | JWT expiration time | `7d` |
 | `CLIENT_URL` | Primary Frontend URL | `http://localhost:5173` |

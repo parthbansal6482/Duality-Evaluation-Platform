@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const dualitySubmissionSchema = new mongoose.Schema({
     user: {
@@ -72,7 +72,7 @@ dualitySubmissionSchema.index({ status: 1, createdAt: 1 });
 let DualitySubmission;
 const getModel = () => {
     if (!DualitySubmission) {
-        const conn = getPracticeConnection();
+        const conn = getDBConnection();
         DualitySubmission = conn.model('DualitySubmission', dualitySubmissionSchema);
     }
     return DualitySubmission;

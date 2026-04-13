@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const dualitySettingsSchema = new mongoose.Schema({
     isOpenRegistration: {
@@ -13,9 +13,9 @@ const dualitySettingsSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 const getDualitySettings = () => {
-    // Return existing model or create new one on the practice DB connection
-    const practiceDb = getPracticeConnection();
-    return practiceDb.models.DualitySettings || practiceDb.model('DualitySettings', dualitySettingsSchema);
+    // Return existing model or create new one on the DB connection
+    const dbConn = getDBConnection();
+    return dbConn.models.DualitySettings || dbConn.model('DualitySettings', dualitySettingsSchema);
 };
 
 module.exports = getDualitySettings;

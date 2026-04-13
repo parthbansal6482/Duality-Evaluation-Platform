@@ -858,7 +858,7 @@ export function AdminDashboard({
           <div className="space-y-6 max-w-3xl">
             <div className="mb-6">
               <h2 className="text-xl font-bold text-white mb-2">Platform Settings</h2>
-              <p className="text-sm text-gray-400">Configure global behaviors and restrictions for the practice environment.</p>
+              <p className="text-sm text-gray-400">Configure global behaviors and restrictions for the evaluation and assignments environment.</p>
             </div>
             
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8">

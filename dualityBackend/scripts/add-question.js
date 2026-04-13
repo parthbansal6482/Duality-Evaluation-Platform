@@ -9,8 +9,7 @@ const Question = require('../src/models/Question');
 const getDualityUser = require('../src/models/duality/DualityUser');
 const getDualityQuestion = require('../src/models/duality/DualityQuestion');
 
-const connectDB = require('../src/config/database');
-const { connectPracticeDB } = require('../src/config/practiceDatabase');
+const { connectDB } = require('../src/config/database');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -217,7 +216,7 @@ async function run() {
         console.log("=== EvalHub Question Seeder ===");
         const creatorEmail = await askQuestion("Enter your Admin email (to assign as creator): ");
 
-        await connectPracticeDB();
+        await connectDB();
         const DualityUser = getDualityUser();
         const DualityQuestion = getDualityQuestion();
         
@@ -230,8 +229,8 @@ async function run() {
 
         for (const newQuestion of questionsToAdd) {
             try {
-                // Adapt structural properties for Practice Question Model
-                const practiceQuestion = {
+                // Adapt structural properties for Duality Question Model
+                const dualityQuestion = {
                     title: newQuestion.title,
                     difficulty: newQuestion.difficulty,
                     category: newQuestion.category,
@@ -244,7 +243,7 @@ async function run() {
                     createdBy: user._id
                 };
 
-                const created = await DualityQuestion.create(practiceQuestion);
+                const created = await DualityQuestion.create(dualityQuestion);
                 console.log(`\n✅ Successfully added "${created.title}" to EvalHub Assigments!`);
             } catch (e) {
                 if (e.code === 11000) {

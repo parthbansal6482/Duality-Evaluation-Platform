@@ -5,7 +5,7 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const connection = require('./config/redis');
-const { connectPracticeDB } = require('./config/practiceDatabase');
+const { connectDB } = require('./config/database');
 
 // Debug log for recently added question
 
@@ -89,7 +89,7 @@ app.options("*", cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Routes — Duality Practice
+// Routes — Duality
 app.use('/api/duality/auth', dualityAuthRoutes);
 app.use('/api/duality/allowed-emails', dualityAllowedEmailRoutes);
 app.use('/api/duality/questions', dualityQuestionRoutes);
@@ -129,7 +129,7 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try {
-        await connectPracticeDB();
+        await connectDB();
 
         server.listen(PORT, () => {
             console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);

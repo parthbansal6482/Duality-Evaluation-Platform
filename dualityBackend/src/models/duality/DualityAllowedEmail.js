@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const allowedEmailSchema = new mongoose.Schema({
     email: {
@@ -25,11 +25,11 @@ const allowedEmailSchema = new mongoose.Schema({
     },
 });
 
-// Use a lazy getter so the model is created on the practice connection
+// Use a lazy getter so the model is created on the DB connection
 let DualityAllowedEmail;
 const getModel = () => {
     if (!DualityAllowedEmail) {
-        const conn = getPracticeConnection();
+        const conn = getDBConnection();
         DualityAllowedEmail = conn.model('DualityAllowedEmail', allowedEmailSchema);
     }
     return DualityAllowedEmail;

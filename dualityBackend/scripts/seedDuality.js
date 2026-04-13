@@ -5,10 +5,10 @@ const path = require('path');
 // Load env vars
 dotenv.config({ path: path.join(__dirname, '../.env') });
 
-const MONGODB_PRACTICE_URI = process.env.MONGODB_PRACTICE_URI;
+const MONGODB_URI = process.env.MONGODB_URI;
 
-if (!MONGODB_PRACTICE_URI) {
-    console.error('Error: MONGODB_PRACTICE_URI is not defined in .env');
+if (!MONGODB_URI) {
+    console.error('Error: MONGODB_URI is not defined in .env');
     process.exit(1);
 }
 
@@ -163,7 +163,7 @@ const questions = [
 async function seed() {
     try {
         console.log('Connecting to EvalHub database...');
-        const conn = await mongoose.createConnection(MONGODB_PRACTICE_URI).asPromise();
+        const conn = await mongoose.createConnection(MONGODB_URI).asPromise();
         console.log('Connected.');
 
         // Define schemas

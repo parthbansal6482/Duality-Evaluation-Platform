@@ -1,15 +1,15 @@
 # DSA Coding Contest Platform
 
 A full-stack platform with two products:
-- **Duality**: LeetCode-style individual practice.
+- **Duality**: Individual Evaluation & Assignments.
 - **Duality Extended**: Team-based timed contests.
 
 ## 🚀 Features
 
-## 📘 Duality (Practice) - Detailed
+## 📘 Duality (Assignments) - Detailed
 
 ### Purpose
-Continuous individual DSA practice with coding history, profile growth, and leaderboard ranking.
+Continuous individual evaluation with coding history, profile growth, and leaderboard ranking.
 
 ### Authentication
 - Google OAuth login.

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const quizSchema = new mongoose.Schema(
   {
@@ -48,7 +48,7 @@ const quizSchema = new mongoose.Schema(
 let Quiz;
 const getModel = () => {
   if (!Quiz) {
-    const conn = getPracticeConnection();
+    const conn = getDBConnection();
     Quiz = conn.model('Quiz', quizSchema);
   }
   return Quiz;

@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { connectPracticeDB } = require('./config/practiceDatabase');
+const { connectDB } = require('./config/database');
 const dualitySubmissionQueue = require('./services/dualitySubmissionQueue');
 const { initializeSocket } = require('./socket');
 const { Server } = require('socket.io');
@@ -15,7 +15,7 @@ const startWorker = async () => {
         console.log('--- DUALITY EXECUTION WORKER ---');
         
         // 1. Connect to MongoDB
-        await connectPracticeDB();
+        await connectDB();
 
         // 2. Initialize Redis Emitter for distributed updates
         const { initializeEmitter } = require('./socket');

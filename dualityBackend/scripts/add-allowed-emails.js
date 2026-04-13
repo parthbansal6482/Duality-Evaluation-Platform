@@ -8,8 +8,8 @@ const emailsToAdd = [
 ];
 
 async function addEmails() {
-    if (!process.env.MONGODB_PRACTICE_URI) {
-        console.error('Error: MONGODB_PRACTICE_URI not found in .env');
+    if (!process.env.MONGODB_URI) {
+        console.error('Error: MONGODB_URI not found in .env');
         process.exit(1);
     }
 
@@ -21,7 +21,7 @@ async function addEmails() {
     let connection;
     try {
         console.log('Connecting to EvalHub MongoDB...');
-        connection = await mongoose.createConnection(process.env.MONGODB_PRACTICE_URI).asPromise();
+        connection = await mongoose.createConnection(process.env.MONGODB_URI).asPromise();
         console.log('Connected successfully.');
 
         // Define schema for this script

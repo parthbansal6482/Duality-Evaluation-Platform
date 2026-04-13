@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getPracticeConnection } = require('../../config/practiceDatabase');
+const { getDBConnection } = require('../../config/database');
 
 const exampleSchema = new mongoose.Schema({
     input: { type: String, required: true },
@@ -81,7 +81,7 @@ const dualityQuestionSchema = new mongoose.Schema({
 let DualityQuestion;
 const getModel = () => {
     if (!DualityQuestion) {
-        const conn = getPracticeConnection();
+        const conn = getDBConnection();
         DualityQuestion = conn.model('DualityQuestion', dualityQuestionSchema);
     }
     return DualityQuestion;

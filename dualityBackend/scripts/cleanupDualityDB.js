@@ -4,9 +4,9 @@ require('dotenv').config({ path: path.join(__dirname, '../.env') });
 
 const cleanup = async () => {
     try {
-        const mongoUri = process.env.MONGODB_PRACTICE_URI;
+        const mongoUri = process.env.MONGODB_URI;
         if (!mongoUri) {
-            console.error('MONGODB_PRACTICE_URI not found in environment');
+            console.error('MONGODB_URI not found in environment');
             process.exit(1);
         }
 
@@ -15,9 +15,9 @@ const cleanup = async () => {
         console.log('Connected.');
 
         const collectionsToDrop = [
-            'practiceleaderboards',
-            'practiceproblems',
-            'practicesubmissions',
+            'legacy_leaderboards',
+            'legacy_problems',
+            'legacy_submissions',
             'studentprogresses',
             'students'
         ];

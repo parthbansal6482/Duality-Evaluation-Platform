@@ -1,15 +1,15 @@
-# Duality - LeetCode-Style Practice Platform
+# Duality - Individual Evaluation & Assignments
 
 ## Overview
 
-Duality is a standalone DSA practice platform integrated into the existing Duality Extended competition system. It provides a LeetCode-like environment where students can practice coding problems anytime, track their progress, and build their coding profile.
+Duality is a dedicated evaluation and assignments platform integrated into the Duality Evaluation system. It provides a LeetCode-style environment where students can solve assignments anytime, track their progress, and build their technical profile.
 
 ## Features
 
 ### 1. **Platform Selection Landing**
 - Clean landing page with two options:
-  - **Duality**: Practice platform for individual learning
-  - **Duality Extended**: Competition platform for team-based contests
+  - **Duality**: Individual Evaluation & Assignments
+  - **Duality Extended**: Professional Competition Platform
 - Consistent dark theme (black/grey/zinc) across both platforms
 
 ### 2. **Google Authentication**
@@ -107,7 +107,7 @@ The Duality platform is completely separate from Duality Extended but shares:
 - Shared component library (UI components)
 
 Users can easily switch between:
-- **Duality**: For individual practice anytime
+- **Duality**: For individual evaluation and assignments
 - **Duality Extended**: For team competitions with tactical features
 
 ## Data Integration
