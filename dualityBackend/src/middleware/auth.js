@@ -1,6 +1,5 @@
 const jwt = require('jsonwebtoken');
-const Admin = require('../models/Admin');
-const Team = require('../models/Team');
+const getDualityUser = require('../models/duality/DualityUser');
 
 // Protect routes - verify JWT token
 exports.protect = async (req, res, next) => {
@@ -27,23 +26,18 @@ exports.protect = async (req, res, next) => {
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
         // Attach user to request based on type
-        if (decoded.type === 'admin') {
-            req.admin = await Admin.findById(decoded.id).select('-password');
-            req.userType = 'admin';
-        } else if (decoded.type === 'team') {
-            const team = await Team.findById(decoded.id).select('-password');
-            if (!team) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Team not found',
-                });
-            }
+        const DualityUser = getDualityUser();
+        const user = await DualityUser.findById(decoded.id);
 
-            // Check if this is the active session (if we decide to implement session IDs)
-            // For now, let's just attach the team
-            req.team = team;
-            req.userType = 'team';
+        if (!user) {
+            return res.status(401).json({
+                success: false,
+                message: 'User not found',
+            });
         }
+
+        req.dualityUser = user;
+        req.userType = user.role;
 
         next();
     } catch (error) {

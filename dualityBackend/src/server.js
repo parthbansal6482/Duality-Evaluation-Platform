@@ -3,7 +3,6 @@ const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
-const connectDB = require('./config/database');
 const { connectPracticeDB } = require('./config/practiceDatabase');
 
 // Debug log for recently added question
@@ -11,25 +10,11 @@ const { connectPracticeDB } = require('./config/practiceDatabase');
 
 const {
     initializeSocket,
-    getLeaderboardData,
-    broadcastCheatingViolation,
-    isTeamActive,
-    addActiveTeam,
-    removeActiveTeam,
     addDualityUser,
     removeDualityUser,
 } = require('./socket');
-const { verifyToken } = require('./utils/jwt');
 
 // Import routes
-const adminRoutes = require('./routes/admin.routes');
-const teamRoutes = require('./routes/team.routes');
-const teamManagementRoutes = require('./routes/teamManagement.routes');
-const statsRoutes = require('./routes/stats.routes');
-const questionRoutes = require('./routes/question.routes');
-const roundRoutes = require('./routes/round.routes');
-const submissionRoutes = require('./routes/submission.routes');
-const settingsRoutes = require('./routes/settings.routes');
 
 // Duality routes
 const dualityAuthRoutes = require('./routes/duality/dualityAuth.routes');
@@ -82,47 +67,8 @@ initializeSocket(io);
 io.on('connection', async (socket) => {
     console.log('Client connected:', socket.id);
 
-    // Send current leaderboard on connection
-    try {
-        const leaderboard = await getLeaderboardData();
-        socket.emit('leaderboard:update', leaderboard);
-    } catch (error) {
-        console.error('Error sending initial leaderboard:', error);
-    }
-
-    // Handle team authentication for session tracking
-    socket.on('team:authenticate', (token) => {
-        try {
-            const decoded = verifyToken(token);
-            if (decoded && decoded.type === 'team') {
-                addActiveTeam(decoded.id, socket.id);
-            }
-        } catch (error) {
-            console.error('Socket authentication error:', error);
-        }
-    });
-
-    // Handle cheating violations reported by clients
-    socket.on('cheating:violation', ({ teamName, roundName, violationType, action, duration }) => {
-        console.log(`Violation reported: ${teamName} - ${violationType} (${action}${duration ? `, ${duration}s` : ''}) in ${roundName}`);
-        broadcastCheatingViolation(teamName, roundName, violationType, action, duration);
-    });
-
-    // Duality user authentication
-    socket.on('duality:authenticate', (token) => {
-        try {
-            const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET);
-            if (decoded && decoded.type === 'duality') {
-                addDualityUser(decoded.id, socket.id);
-            }
-        } catch (error) {
-            console.error('Duality socket authentication error:', error);
-        }
-    });
-
     socket.on('disconnect', () => {
         console.log('Client disconnected:', socket.id);
-        removeActiveTeam(socket.id);
         removeDualityUser(socket.id);
     });
 });
@@ -130,16 +76,6 @@ io.on('connection', async (socket) => {
 app.options("*", cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Routes — Extended
-app.use('/api/admin', adminRoutes);
-app.use('/api/team', teamRoutes);
-app.use('/api/teams', teamManagementRoutes);
-app.use('/api/stats', statsRoutes);
-app.use('/api/questions', questionRoutes);
-app.use('/api/rounds', roundRoutes);
-app.use('/api/submissions', submissionRoutes);
-app.use('/api/settings', settingsRoutes);
 
 // Routes — Duality Practice
 app.use('/api/duality/auth', dualityAuthRoutes);
@@ -181,7 +117,6 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try {
-        await connectDB();
         await connectPracticeDB();
 
         server.listen(PORT, () => {
@@ -189,9 +124,6 @@ const startServer = async () => {
             console.log(`WebSocket server ready on port ${PORT}`);
 
             // Start background workers for code execution
-            const submissionQueue = require('./services/submissionQueue');
-            submissionQueue.start();
-
             const dualitySubmissionQueue = require('./services/dualitySubmissionQueue');
             dualitySubmissionQueue.start();
         });

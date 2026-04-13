@@ -21,7 +21,7 @@ async function run() {
 
         await connectPracticeDB();
         const DualityUser = getDualityUser();
-        
+
         let user = await DualityUser.findOne({ email });
         if (user) {
             user.role = 'admin';

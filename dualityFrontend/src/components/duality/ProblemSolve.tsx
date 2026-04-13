@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Play, CheckCircle2, XCircle, Code2, FileText, Clock, RotateCcw } from 'lucide-react';
 import { getDualityQuestion, submitDualityCode, runDualityCode, getDualitySettings } from '../../services/duality.service';
-import { MonacoCodeEditor } from '../round-page/MonacoCodeEditor';
+import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 
 interface TestCase {

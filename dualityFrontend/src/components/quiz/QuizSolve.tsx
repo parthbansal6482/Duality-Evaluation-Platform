@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, Code2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getQuiz, submitQuizAnswer } from '../../services/quiz.service';
 import { getDualitySettings } from '../../services/duality.service';
-import { MonacoCodeEditor } from '../round-page/MonacoCodeEditor';
+import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
 
 export function QuizSolve({
   quizId,
