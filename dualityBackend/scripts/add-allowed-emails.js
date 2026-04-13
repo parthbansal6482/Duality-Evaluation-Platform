@@ -1,9 +1,10 @@
-require('dotenv').config({ path: '../.env' });
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const mongoose = require('mongoose');
 
 // The emails you want to add - Edit this list!
 const emailsToAdd = [
-    'suvansh.sehgal.23cse@bmu.edu.in'
+    'parth.bansal.24cse@bmu.edu.in'
 ];
 
 async function addEmails() {
