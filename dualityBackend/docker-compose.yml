@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  code-executor:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    image: code-executor:latest
+    container_name: code-executor
+    # Security settings
+    security_opt:
+      - no-new-privileges:true
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 256M
+        reservations:
+          cpus: '0.5'
+          memory: 128M
+    # Network isolation
+    network_mode: none
+    # Read-only root filesystem (except /code and /tmp)
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,mode=1777
+      - /code:size=50M,mode=1777
+    # Prevent privilege escalation
+    cap_drop:
+      - ALL
+    # Process limits
+    pids_limit: 50
+    # Auto-remove after stop
+    restart: "no"
