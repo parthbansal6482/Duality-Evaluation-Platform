@@ -1,6 +1,4 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const mongoose = require('mongoose');
+const { initDB } = require('./script-db');
 
 // The emails you want to add - Edit this list!
 const emailsToAdd = [
@@ -8,39 +6,21 @@ const emailsToAdd = [
 ];
 
 async function addEmails() {
-    if (!process.env.MONGODB_URI) {
-        console.error('Error: MONGODB_URI not found in .env');
-        process.exit(1);
-    }
-
-    if (emailsToAdd.length === 0) {
-        console.log('No emails provided in the emailsToAdd array.');
-        process.exit(0);
-    }
-
-    let connection;
     try {
-        console.log('Connecting to EvalHub MongoDB...');
-        connection = await mongoose.createConnection(process.env.MONGODB_URI).asPromise();
-        console.log('Connected successfully.');
+        const { mode, models } = await initDB();
+        const AllowedEmail = models.AllowedEmail;
 
-        // Define schema for this script
-        const allowedEmailSchema = new mongoose.Schema({
-            email: {
-                type: String,
-                required: true,
-                unique: true,
-                lowercase: true,
-                trim: true,
-            },
-            addedAt: {
-                type: Date,
-                default: Date.now,
-            },
-        });
+        if (!AllowedEmail) {
+            console.error(`\n❌ Error: The [${mode}] platform does not use an Allowlist model.`);
+            process.exit(1);
+        }
 
-        const DualityAllowedEmail = connection.model('DualityAllowedEmail', allowedEmailSchema);
+        if (emailsToAdd.length === 0) {
+            console.log('\nNo emails provided in the emailsToAdd array.');
+            process.exit(0);
+        }
 
+        console.log(`\n=== Managing Allowlists for [${mode.toUpperCase()}] ===`);
         const results = { added: 0, skipped: 0, errors: 0 };
 
         for (const email of emailsToAdd) {
@@ -53,12 +33,12 @@ async function addEmails() {
             }
 
             try {
-                const existing = await DualityAllowedEmail.findOne({ email: normalizedEmail });
+                const existing = await AllowedEmail.findOne({ email: normalizedEmail });
                 if (existing) {
                     console.log(`[SKIP] ${normalizedEmail} - Already in allowlist`);
                     results.skipped++;
                 } else {
-                    await DualityAllowedEmail.create({ email: normalizedEmail });
+                    await AllowedEmail.create({ email: normalizedEmail });
                     console.log(`[ADDED] ${normalizedEmail}`);
                     results.added++;
                 }
@@ -75,12 +55,9 @@ async function addEmails() {
         console.log('---------------');
 
     } catch (error) {
-        console.error('Connection error:', error.message);
+        console.error('\n❌ Initialization error:', error.message);
     } finally {
-        if (connection) {
-            await connection.close();
-            console.log('Database connection closed.');
-        }
+        process.exit(0);
     }
 }
 

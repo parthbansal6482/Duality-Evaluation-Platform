@@ -1,15 +1,5 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const mongoose = require('mongoose');
 const readline = require('readline');
-
-// Models
-const Admin = require('../src/models/Admin');
-const Question = require('../src/models/Question');
-const getDualityUser = require('../src/models/duality/DualityUser');
-const getDualityQuestion = require('../src/models/duality/DualityQuestion');
-
-const { connectDB } = require('../src/config/database');
+const { initDB } = require('./script-db');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -213,49 +203,59 @@ const questionsToAdd = [
 
 async function run() {
     try {
-        console.log("=== EvalHub Question Seeder ===");
-        const creatorEmail = await askQuestion("Enter your Admin email (to assign as creator): ");
+        const { mode, models } = await initDB();
+        const Question = models.Question;
+        const User = models.User;
 
-        await connectDB();
-        const DualityUser = getDualityUser();
-        const DualityQuestion = getDualityQuestion();
-        
-        let user = await DualityUser.findOne({ email: creatorEmail, role: 'admin' });
+        console.log(`\n=== [${mode.toUpperCase()}] Question Seeder ===`);
+        const email = await askQuestion("Enter your Admin email (to attribute as creator): ");
+
+        let user = await User.findOne({ email: email.toLowerCase().trim(), role: 'admin' });
         if (!user) {
-            console.log(`Admin ${creatorEmail} not found. Attributing to first available admin...`);
-            user = await DualityUser.findOne({ role: 'admin' });
-            if (!user) throw new Error("No admins found in EvalHub DB. Please run add-admin.js to upgrade a user first.");
+            console.log(`Admin ${email} not found. Attempting to use first available admin...`);
+            user = await User.findOne({ role: 'admin' });
+            if (!user) throw new Error(`No admins found in ${mode} database.`);
         }
 
-        for (const newQuestion of questionsToAdd) {
+        for (const data of questionsToAdd) {
             try {
-                // Adapt structural properties for Duality Question Model
-                const dualityQuestion = {
-                    title: newQuestion.title,
-                    difficulty: newQuestion.difficulty,
-                    category: newQuestion.category,
-                    description: newQuestion.description,
-                    constraints: newQuestion.constraints.split('\n').filter(c => c.trim() !== ''), 
-                    examples: newQuestion.examples,
-                    testCases: newQuestion.testCases, 
-                    boilerplate: newQuestion.boilerplateCode, 
-                    driverCode: newQuestion.driverCode,
+                // Determine model-specific format
+                const questionToCreate = {
+                    title: data.title,
+                    difficulty: data.difficulty,
+                    category: data.category,
+                    description: data.description,
+                    constraints: (typeof data.constraints === 'string') 
+                        ? data.constraints.split('\n').filter(c => c.trim() !== '')
+                        : data.constraints,
+                    examples: data.examples,
+                    testCases: data.testCases,
+                    boilerplate: data.boilerplateCode || data.boilerplate,
+                    driverCode: data.driverCode,
                     createdBy: user._id
                 };
 
-                const created = await DualityQuestion.create(dualityQuestion);
-                console.log(`\n✅ Successfully added "${created.title}" to EvalHub Assigments!`);
+                const created = await Question.create(questionToCreate);
+                console.log(`\n✅ Added "${created.title}" to ${mode} platform.`);
             } catch (e) {
                 if (e.code === 11000) {
-                    console.error(`\n❌ Error: A question with the title "${newQuestion.title}" already exists.`);
+                    console.error(`\n❌ Error: Question "${data.title}" already exists.`);
                 } else {
-                    console.error(`\n❌ Error adding "${newQuestion.title}":`, e.message);
+                    console.error(`\n❌ Error adding "${data.title}":`, e.message);
                 }
             }
         }
+
+        // Trigger real-time dashboard refresh
+        try {
+            const { broadcastDualityQuestionUpdate } = require('../src/socket');
+            broadcastDualityQuestionUpdate();
+            console.log('📡 Broadcasted update to dashboards.');
+        } catch (err) {
+            console.log('⚠️ Could not broadcast update (but questions were added).');
+        }
     } catch (e) {
-        console.error("\n❌ Fatal Error occurred:", e.message);
-        console.error(e);
+        console.error("\n❌ Fatal Error:", e.message);
     } finally {
         rl.close();
         process.exit(0);

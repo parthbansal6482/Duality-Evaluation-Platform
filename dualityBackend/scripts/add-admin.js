@@ -1,10 +1,5 @@
-const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-const mongoose = require('mongoose');
-const Admin = require('../src/models/Admin');
-const { connectExtendedDB } = require('../src/config/extendedDatabase');
-const getDualityUser = require('../src/models/duality/DualityUser');
 const readline = require('readline');
+const { initDB } = require('./script-db');
 
 const rl = readline.createInterface({
     input: process.stdin,
@@ -15,23 +10,27 @@ const askQuestion = (query) => new Promise(resolve => rl.question(query, resolve
 
 async function run() {
     try {
-        console.log("=== EvalHub Admin Assignment Tool ===");
-        const email = await askQuestion("Enter the user's email address: ");
+        const { mode, models } = await initDB();
+        
+        console.log(`\n=== [${mode.toUpperCase()}] Admin Assignment Tool ===`);
+        const email = await askQuestion("Enter the user's email address to promote: ");
 
-        await connectExtendedDB();
-        const DualityUser = getDualityUser();
+        const User = models.User;
 
-        let user = await DualityUser.findOne({ email });
+        let user = await User.findOne({ email: email.toLowerCase().trim() });
+        
         if (user) {
             user.role = 'admin';
             await user.save();
-            console.log(`Successfully updated ${email} to admin role in EvalHub platform.`);
+            console.log(`\n✅ Successfully updated ${email} to ADMIN role in ${mode} database.`);
         } else {
-            console.log(`User ${email} does not exist in EvalHub platform.`);
-            console.log(`Users must first log in via Google before their role can be upgraded.`);
+            console.log(`\n❌ User ${email} does not exist in ${mode} database.`);
+            if (mode === 'evaluation') {
+                console.log(`Note: Users must first log in via Google before their account exists.`);
+            }
         }
     } catch (e) {
-        console.error("Error occurred:", e);
+        console.error("\n❌ Error occurred:", e.message);
     } finally {
         rl.close();
         process.exit(0);
