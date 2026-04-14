@@ -78,9 +78,10 @@ exports.googleLogin = async (req, res) => {
 
         // 1. Enforce @bmu.edu.in domain
         if (!email.endsWith('@bmu.edu.in')) {
+            console.warn(`[Auth] Blocked login attempt from non-authorized domain: ${email}`);
             return res.status(403).json({
                 success: false,
-                message: 'Only @bmu.edu.in email addresses are allowed',
+                message: 'Access Denied: Only @bmu.edu.in email addresses are allowed.',
             });
         }
 
@@ -95,9 +96,10 @@ exports.googleLogin = async (req, res) => {
             const allowedEntry = await DualityAllowedEmail.findOne({ email: email.toLowerCase() });
 
             if (!allowedEntry) {
+                console.warn(`[Auth] Blocked login attempt for non-allowlisted email: ${email}`);
                 return res.status(403).json({
                     success: false,
-                    message: 'Your email is not authorized to access this platform. Contact your admin.',
+                    message: 'Your email is not authorized to access this platform. Please contact your administrator to be added to the allowlist.',
                 });
             }
         }

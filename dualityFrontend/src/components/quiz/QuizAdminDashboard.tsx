@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ClipboardList, Plus, Play, Square, Users, Trophy, Trash2, Edit2, LogOut, User } from 'lucide-react';
 import { getQuizzes, createQuiz, updateQuiz, deleteQuiz, activateQuiz, endQuiz, getQuizResults } from '../../services/quiz.service';
-import { getDualityQuestions } from '../../services/duality.service';
+import { getDualityQuestions, getDualityUsers } from '../../services/duality.service';
 
 export function QuizAdminDashboard({
   userName,
@@ -13,14 +13,16 @@ export function QuizAdminDashboard({
   const [activeTab, setActiveTab] = useState<'quizzes' | 'results'>('quizzes');
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [questions, setQuestions] = useState<any[]>([]);
+  const [students, setStudents] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ title: '', durationMinutes: 30, questions: [] as string[] });
+  const [formData, setFormData] = useState({ title: '', durationMinutes: 30, questions: [] as string[], assignedTo: [] as string[] });
   const [selectedQuizForResults, setSelectedQuizForResults] = useState<string | null>(null);
   const [results, setResults] = useState<any[]>([]);
 
   useEffect(() => {
     fetchQuizzes();
     fetchQuestions();
+    fetchStudents();
   }, []);
 
   const fetchQuizzes = async () => {
@@ -36,6 +38,19 @@ export function QuizAdminDashboard({
     try {
       const data = await getDualityQuestions();
       if (data.success) setQuestions(data.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchStudents = async () => {
+    try {
+      const data = await getDualityUsers();
+      if (data.success) {
+        // Filter out admins so we only assign to students
+        const studentOnly = data.data.filter((u: any) => (u.role || 'student') === 'student');
+        setStudents(studentOnly);
+      }
     } catch (err) {
       console.error(err);
     }
@@ -104,7 +119,7 @@ export function QuizAdminDashboard({
                     <div key={q._id} className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl flex justify-between items-center">
                         <div>
                             <h3 className="text-xl font-semibold text-white">{q.title}</h3>
-                            <p className="text-gray-400 text-sm mt-1">{q.durationMinutes} mins • {q.questions?.length || 0} questions</p>
+                            <p className="text-gray-400 text-sm mt-1">{q.durationMinutes} mins • {q.questions?.length || 0} questions • Assigned to {q.assignedTo?.length || 0} students</p>
                             <span className={`inline-block mt-2 px-2 py-1 rounded text-xs ${q.status === 'active' ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-gray-400'}`}>
                                 {q.status.toUpperCase()}
                             </span>
@@ -151,6 +166,7 @@ export function QuizAdminDashboard({
                   <input className="w-full bg-black border border-zinc-800 p-2 text-white rounded mb-4" placeholder="Quiz Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
                   <input type="number" className="w-full bg-black border border-zinc-800 p-2 text-white rounded mb-4" placeholder="Duration (mins)" value={formData.durationMinutes} onChange={e => setFormData({...formData, durationMinutes: parseInt(e.target.value)})} />
                   <div className="h-48 overflow-y-auto bg-black p-2 rounded mb-4 border border-zinc-800">
+                      <p className="text-xs text-gray-500 mb-2 uppercase font-bold px-2">Select Questions</p>
                       {questions.map(q => (
                           <label key={q._id} className="flex gap-2 items-center p-2 text-gray-300">
                               <input type="checkbox" checked={formData.questions.includes(q._id)} onChange={(e) => {
@@ -158,6 +174,23 @@ export function QuizAdminDashboard({
                                   else setFormData({...formData, questions: formData.questions.filter(id => id !== q._id)});
                               }}/>
                               {q.title}
+                          </label>
+                      ))}
+                  </div>
+                  <div className="h-48 overflow-y-auto bg-black p-2 rounded mb-4 border border-zinc-800">
+                      <div className="flex justify-between items-center mb-2 px-2">
+                          <p className="text-xs text-gray-500 uppercase font-bold">Assign to Students</p>
+                          <button onClick={() => setFormData({...formData, assignedTo: formData.assignedTo.length === students.length ? [] : students.map(s => s._id)})} className="text-xs text-blue-500 hover:text-blue-400">
+                              {formData.assignedTo.length === students.length ? 'Deselect All' : 'Select All'}
+                          </button>
+                      </div>
+                      {students.map(s => (
+                          <label key={s._id} className="flex gap-2 items-center p-2 text-gray-300">
+                              <input type="checkbox" checked={formData.assignedTo.includes(s._id)} onChange={(e) => {
+                                  if(e.target.checked) setFormData({...formData, assignedTo: [...formData.assignedTo, s._id]});
+                                  else setFormData({...formData, assignedTo: formData.assignedTo.filter(id => id !== s._id)});
+                              }}/>
+                              {s.name} ({s.email})
                           </label>
                       ))}
                   </div>

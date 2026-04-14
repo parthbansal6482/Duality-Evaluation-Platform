@@ -23,6 +23,12 @@ const quizSchema = new mongoose.Schema(
         ref: 'DualityQuestion',
       },
     ],
+    assignedTo: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'DualityUser',
+      },
+    ],
     durationMinutes: {
       type: Number,
       required: [true, 'Duration is required'],

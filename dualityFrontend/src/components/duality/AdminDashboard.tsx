@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye } from 'lucide-react';
+import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList } from 'lucide-react';
+import { getQuizzes, createQuiz, updateQuiz, deleteQuiz, activateQuiz, endQuiz } from '../../services/quiz.service';
 
 interface TestCase {
   input: string;
@@ -61,7 +62,7 @@ interface Student {
 
 
 
-type ActiveTab = 'questions' | 'students' | 'leaderboard' | 'settings';
+type ActiveTab = 'questions' | 'students' | 'leaderboard' | 'settings' | 'assignments';
 
 const defaultQuestionJSON = `{
   "title": "Two Sum",
@@ -129,6 +130,18 @@ export function AdminDashboard({
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState('');
 
+  // Assignments State
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [assignmentFormData, setAssignmentFormData] = useState({
+    _id: '',
+    title: '',
+    description: '',
+    durationMinutes: 60,
+    questions: [] as string[],
+    assignedTo: [] as string[]
+  });
+
   const [formData, setFormData] = useState({
     title: '',
     difficulty: 'Easy' as 'Easy' | 'Medium' | 'Hard',
@@ -151,60 +164,48 @@ export function AdminDashboard({
     }
   });
 
-  const fetchQuestions = async () => {
+  const fetchData = async () => {
     try {
       setIsLoading(true);
-      const result = await getDualityQuestions();
-      if (result.success) {
-        setQuestions(result.data);
-      }
-    } catch (error) {
-      console.error('Error fetching questions:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+      const [questionsRes, studentsRes, settingsRes, quizzesRes] = await Promise.all([
+        getDualityQuestions(),
+        getDualityUsers(),
+        getDualitySettings(),
+        getQuizzes()
+      ]);
 
-  const fetchStudents = async () => {
-    try {
-      const result = await getDualityUsers();
-      if (result.success) {
-        const studentOnly = result.data.filter((u: any) => (u.role || 'student') === 'student');
-        // Add rank based on sorted list
+      if (questionsRes.success) setQuestions(questionsRes.data);
+      if (studentsRes.success) {
+        const studentOnly = studentsRes.data.filter((u: any) => (u.role || 'student') === 'student');
         const studentsWithRank = studentOnly.map((s: any, index: number) => ({
           ...s,
           rank: index + 1
         }));
         setStudents(studentsWithRank);
       }
+      if (settingsRes.success) {
+        setIsOpenRegistration(settingsRes.data.isOpenRegistration);
+        setIsPasteEnabled(settingsRes.data.isPasteEnabled);
+      }
+      if (quizzesRes.success) setAssignments(quizzesRes.data);
     } catch (error) {
-      console.error('Error fetching students:', error);
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchQuestions();
-    fetchStudents();
+    fetchData();
     
-    // Fetch initial settings
-    getDualitySettings().then(result => {
-        if (result.success) {
-            setIsOpenRegistration(result.data.isOpenRegistration);
-            if (result.data.isPasteEnabled !== undefined) {
-               setIsPasteEnabled(result.data.isPasteEnabled);
-            }
-        }
-    }).catch(console.error);
-
     dualitySocketService.connect();
 
-    // Listen for socket updates
     const unsubscribeSubmission = dualitySocketService.onSubmissionUpdate(() => {
-      fetchStudents();
+      fetchData();
     });
 
     const unsubscribeQuestion = dualitySocketService.onQuestionUpdate(() => {
-      fetchQuestions();
+      fetchData();
     });
 
     return () => {
@@ -216,11 +217,9 @@ export function AdminDashboard({
   const toggleOpenRegistration = async () => {
     try {
         const newValue = !isOpenRegistration;
-        // Optimistic update
         setIsOpenRegistration(newValue);
         const result = await updateDualitySettings({ isOpenRegistration: newValue });
         if (!result.success) {
-            // Revert on failure
             setIsOpenRegistration(!newValue);
             alert('Failed to update registration settings');
         }
@@ -234,11 +233,9 @@ export function AdminDashboard({
   const togglePasteEnabled = async () => {
     try {
         const newValue = !isPasteEnabled;
-        // Optimistic update
         setIsPasteEnabled(newValue);
         const result = await updateDualitySettings({ isPasteEnabled: newValue });
         if (!result.success) {
-            // Revert on failure
             setIsPasteEnabled(!newValue);
             alert('Failed to update pasting settings');
         }
@@ -271,6 +268,73 @@ export function AdminDashboard({
     return Math.min(100, (solved / total) * 100);
   };
 
+  const handleUpdateSettings = async (updates: any) => {
+    try {
+      await updateDualitySettings(updates);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleSaveAssignment = async () => {
+    try {
+      if (assignmentFormData._id) {
+        await updateQuiz(assignmentFormData._id, assignmentFormData);
+      } else {
+        await createQuiz(assignmentFormData);
+      }
+      setShowAssignmentModal(false);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to save assignment');
+    }
+  };
+
+  const handleDeleteAssignment = async (id: string) => {
+    if (confirm('Are you sure you want to delete this assignment?')) {
+      try {
+        await deleteQuiz(id);
+        fetchData();
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  };
+
+  const handleToggleAssignmentStatus = async (quiz: any) => {
+    try {
+      if (quiz.status === 'draft') await activateQuiz(quiz._id);
+      else if (quiz.status === 'active') await endQuiz(quiz._id);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const resetAssignmentForm = (quiz?: any) => {
+    if (quiz) {
+      setAssignmentFormData({
+        _id: quiz._id,
+        title: quiz.title,
+        description: quiz.description || '',
+        durationMinutes: quiz.durationMinutes,
+        questions: quiz.questions?.map((q: any) => q._id || q) || [],
+        assignedTo: quiz.assignedTo?.map((u: any) => u._id || u) || []
+      });
+    } else {
+      setAssignmentFormData({
+        _id: '',
+        title: '',
+        description: '',
+        durationMinutes: 60,
+        questions: [],
+        assignedTo: []
+      });
+    }
+  };
+
   const handleAddQuestion = async () => {
     try {
       let data = formData;
@@ -279,7 +343,7 @@ export function AdminDashboard({
       }
       const result = await createDualityQuestion(data);
       if (result.success) {
-        fetchQuestions();
+        fetchData();
         closeModal();
       }
     } catch (error) {
@@ -297,7 +361,7 @@ export function AdminDashboard({
         }
         const result = await updateDualityQuestion(editingQuestion._id, data);
         if (result.success) {
-          fetchQuestions();
+          fetchData();
           closeModal();
         }
       } catch (error) {
@@ -312,7 +376,7 @@ export function AdminDashboard({
       try {
         const result = await deleteDualityQuestion(id);
         if (result.success) {
-          fetchQuestions();
+          fetchData();
         }
       } catch (error) {
         console.error('Error deleting question:', error);
@@ -480,6 +544,16 @@ export function AdminDashboard({
                     }`}
                 >
                   <BookOpen className="w-4 h-4" />
+                  Question Bank
+                </button>
+                <button
+                  onClick={() => setActiveTab('assignments')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'assignments'
+                    ? 'bg-white text-black'
+                    : 'text-gray-400 hover:text-white'
+                    }`}
+                >
+                  <ClipboardList className="w-4 h-4" />
                   Assignments
                 </button>
                 <button
@@ -594,13 +668,13 @@ export function AdminDashboard({
 
             {/* Actions */}
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">All Assignments</h2>
+              <h2 className="text-xl font-bold text-white">Question Bank</h2>
               <button
                 onClick={() => { setShowAddModal(true); setJsonInput(defaultQuestionJSON); setEditorMode('form'); setJsonError(''); }}
                 className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors"
               >
                 <Plus className="w-4 h-4" />
-                Add Assignment
+                Create Question
               </button>
             </div>
 
@@ -716,6 +790,52 @@ export function AdminDashboard({
               {filteredQuestions.length === 0 && (
                 <div className="py-12 text-center text-gray-500">
                   <p>No questions found with the selected filters.</p>
+                </div>
+              )}
+            </div>
+          </>
+        ) : activeTab === 'assignments' ? (
+          <>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-white">Genuine Assignments</h2>
+              <button
+                onClick={() => { resetAssignmentForm(); setShowAssignmentModal(true); }}
+                className="flex items-center gap-2 px-4 py-2 bg-white text-black rounded-lg font-medium hover:bg-gray-200 transition-colors"
+              >
+                <Plus className="w-4 h-4" />
+                Create New Assignment
+              </button>
+            </div>
+
+            <div className="grid gap-4">
+              {assignments.map((q: any) => (
+                <div key={q._id} className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl flex justify-between items-center">
+                  <div>
+                    <h3 className="text-xl font-semibold text-white">{q.title}</h3>
+                    <p className="text-gray-400 text-sm mt-1">
+                      {q.durationMinutes} mins • {q.questions?.length || 0} questions • Assigned to {q.assignedTo?.length || 0} students
+                    </p>
+                    <span className={`inline-block mt-2 px-2 py-1 rounded text-[10px] font-bold tracking-wider ${q.status === 'active' ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-gray-500'}`}>
+                      {q.status.toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => handleToggleAssignmentStatus(q)} className={`p-2 rounded-lg transition-colors ${q.status === 'draft' ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}>
+                      {q.status === 'draft' ? <Play className="w-5 h-5" /> : <Square fill="currentColor" className="w-5 h-5" />}
+                    </button>
+                    <button onClick={() => { resetAssignmentForm(q); setShowAssignmentModal(true); }} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg">
+                      <Edit2 className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => handleDeleteAssignment(q._id)} className="p-2 text-red-400 hover:bg-red-400/10 rounded-lg">
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {assignments.length === 0 && (
+                <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-12 text-center text-gray-500">
+                  <ClipboardList className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                  <p>No targeted assignments created yet.</p>
                 </div>
               )}
             </div>
@@ -1423,6 +1543,127 @@ export function AdminDashboard({
             >
               Close
             </button>
+          </div>
+        </div>
+      )}
+      {/* Assignment Creation/Edit Modal */}
+      {showAssignmentModal && (
+        <div className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-[60] backdrop-blur-sm overflow-y-auto">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 w-full max-w-2xl my-8">
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                <ClipboardList className="w-6 h-6" />
+                {assignmentFormData._id ? 'Edit Assignment' : 'Create Assignment'}
+              </h2>
+              <button 
+                onClick={() => setShowAssignmentModal(false)} 
+                className="text-gray-500 hover:text-white transition-colors p-2 hover:bg-white/5 rounded-full"
+              >
+                <Plus className="w-6 h-6 rotate-45" />
+              </button>
+            </div>
+
+            <div className="space-y-6">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Assignment Title</label>
+                  <input
+                    className="w-full bg-black border border-zinc-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-zinc-500 transition-colors"
+                    placeholder="e.g., Weekly Data Structures Assessment"
+                    value={assignmentFormData.title}
+                    onChange={e => setAssignmentFormData({ ...assignmentFormData, title: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Duration (Minutes)</label>
+                  <input
+                    type="number"
+                    className="w-full bg-black border border-zinc-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-zinc-500 transition-colors"
+                    value={assignmentFormData.durationMinutes}
+                    onChange={e => setAssignmentFormData({ ...assignmentFormData, durationMinutes: parseInt(e.target.value) || 0 })}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Select Questions from Bank ({assignmentFormData.questions.length} selected)</label>
+                <div className="bg-black border border-zinc-800 rounded-xl h-48 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                  {questions.map(q => (
+                    <label key={q._id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${assignmentFormData.questions.includes(q._id) ? 'bg-white/5 border-white/20' : 'border-transparent hover:bg-white/5'}`}>
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-white focus:ring-0 focus:ring-offset-0"
+                        checked={assignmentFormData.questions.includes(q._id)}
+                        onChange={e => {
+                          const newQuestions = e.target.checked
+                            ? [...assignmentFormData.questions, q._id]
+                            : assignmentFormData.questions.filter(id => id !== q._id);
+                          setAssignmentFormData({ ...assignmentFormData, questions: newQuestions });
+                        }}
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-white">{q.title}</p>
+                        <p className="text-[10px] text-gray-500 uppercase font-bold">{q.difficulty} • {q.category}</p>
+                      </div>
+                    </label>
+                  ))}
+                  {questions.length === 0 && <p className="text-center text-gray-500 py-4 text-sm">Question bank is empty.</p>}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between items-center mb-2">
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Assign to Students ({assignmentFormData.assignedTo.length} selected)</label>
+                  <button 
+                    onClick={() => setAssignmentFormData({ 
+                      ...assignmentFormData, 
+                      assignedTo: assignmentFormData.assignedTo.length === students.length ? [] : students.map(s => s.id) 
+                    })}
+                    className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest"
+                  >
+                    {assignmentFormData.assignedTo.length === students.length ? 'Deselect All' : 'Select All Clients'}
+                  </button>
+                </div>
+                <div className="bg-black border border-zinc-800 rounded-xl h-48 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                  {students.map(s => (
+                    <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${assignmentFormData.assignedTo.includes(s.id) ? 'bg-white/5 border-white/20' : 'border-transparent hover:bg-white/5'}`}>
+                      <input
+                        type="checkbox"
+                        className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-white focus:ring-0 focus:ring-offset-0"
+                        checked={assignmentFormData.assignedTo.includes(s.id)}
+                        onChange={e => {
+                          const newAssigned = e.target.checked
+                            ? [...assignmentFormData.assignedTo, s.id]
+                            : assignmentFormData.assignedTo.filter(id => id !== s.id);
+                          setAssignmentFormData({ ...assignmentFormData, assignedTo: newAssigned });
+                        }}
+                      />
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-white">{s.name}</p>
+                        <p className="text-[10px] text-gray-400">{s.email}</p>
+                      </div>
+                    </label>
+                  ))}
+                  {students.length === 0 && <p className="text-center text-gray-500 py-4 text-sm">No students registered.</p>}
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-4">
+                <button
+                  onClick={handleSaveAssignment}
+                  disabled={!assignmentFormData.title || assignmentFormData.questions.length === 0}
+                  className="flex-1 bg-white text-black py-4 rounded-xl font-bold hover:bg-gray-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed uppercase tracking-widest text-xs"
+                >
+                  {assignmentFormData._id ? 'Update Assignment' : 'Create Assignment'}
+                </button>
+                <button
+                  onClick={() => setShowAssignmentModal(false)}
+                  className="px-8 bg-zinc-800 text-gray-400 rounded-xl font-bold hover:text-white hover:bg-zinc-700 transition-all uppercase tracking-widest text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

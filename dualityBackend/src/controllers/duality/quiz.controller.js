@@ -10,7 +10,7 @@ const { runTestCases } = require('../../services/execution.service');
 exports.createQuiz = async (req, res) => {
     try {
         const Quiz = getQuiz();
-        const { title, description, durationMinutes, startTime, endTime, questions } = req.body;
+        const { title, description, durationMinutes, startTime, endTime, questions, assignedTo } = req.body;
         if (!title || !durationMinutes) {
             return res.status(400).json({ success: false, message: 'title and durationMinutes are required' });
         }
@@ -21,6 +21,7 @@ exports.createQuiz = async (req, res) => {
             startTime: startTime || null,
             endTime: endTime || null,
             questions: questions || [],
+            assignedTo: assignedTo || [],
             createdBy: req.dualityUser._id,
             status: 'draft',
         });
@@ -37,10 +38,11 @@ exports.getQuizzes = async (req, res) => {
         const Quiz = getQuiz();
         const isAdmin = req.dualityUser.role === 'admin';
 
-        // Students only see active quizzes
-        const filter = isAdmin ? {} : { status: 'active' };
+        // Students only see active quizzes assigned specifically to them
+        const filter = isAdmin ? {} : { status: 'active', assignedTo: req.dualityUser._id };
         const quizzes = await Quiz.find(filter)
             .populate('questions', 'title difficulty category')
+            .populate('assignedTo', 'name email')
             .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, data: quizzes });
@@ -59,9 +61,14 @@ exports.getQuiz = async (req, res) => {
 
         if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
 
-        // Students can only access active quizzes
-        if (req.dualityUser.role !== 'admin' && quiz.status !== 'active') {
-            return res.status(403).json({ success: false, message: 'This quiz is not currently active' });
+        // Students can only access active quizzes assigned to them
+        if (req.dualityUser.role !== 'admin') {
+            if (quiz.status !== 'active') {
+                return res.status(403).json({ success: false, message: 'This quiz is not currently active' });
+            }
+            if (!quiz.assignedTo || !quiz.assignedTo.some(userId => userId.toString() === req.dualityUser._id.toString())) {
+                return res.status(403).json({ success: false, message: 'You are not assigned to this quiz' });
+            }
         }
 
         res.status(200).json({ success: true, data: quiz });

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Code2, CheckCircle2, Clock, Trophy, User, LogOut, TrendingUp, Target, BarChart3, FileText } from 'lucide-react';
+import { Code2, CheckCircle2, Clock, Trophy, User, LogOut, TrendingUp, Target, BarChart3, FileText, ClipboardList, BookOpen, Play } from 'lucide-react';
 import { Profile } from './Profile';
 import { SubmissionsHistory } from './SubmissionsHistory';
 import { getDualityQuestions, dualityGetMe, getDualityUserSubmissions, getDualityLeaderboard } from '../../services/duality.service';
+import { getQuizzes } from '../../services/quiz.service';
+import { QuizSolve } from '../quiz/QuizSolve';
 import dualitySocketService from '../../services/dualitySocket.service';
 
 interface Problem {
@@ -41,7 +43,9 @@ export function StudentDashboard({
   onLogout: () => void;
   onSolveProblem: (problemId: string) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'problems' | 'profile' | 'history' | 'leaderboard'>('problems');
+  const [activeTab, setActiveTab] = useState<'assignments' | 'problems' | 'profile' | 'history' | 'leaderboard'>('assignments');
+  const [assignments, setAssignments] = useState<any[]>([]);
+  const [activeQuizId, setActiveQuizId] = useState<string | null>(null);
   const [selectedDifficulty, setSelectedDifficulty] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -86,10 +90,11 @@ export function StudentDashboard({
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [questionsRes, userRes, submissionsRes] = await Promise.all([
+      const [questionsRes, userRes, submissionsRes, quizzesRes] = await Promise.all([
         getDualityQuestions(),
         dualityGetMe(),
         getDualityUserSubmissions(),
+        getQuizzes()
       ]);
       const leaderboardRes = await getDualityLeaderboard();
 
@@ -97,6 +102,9 @@ export function StudentDashboard({
 
       if (questionsRes.success) {
         setProblems(withSolvedFlags(questionsRes.data, submissionsData));
+      }
+      if (quizzesRes.success) {
+        setAssignments(quizzesRes.data);
       }
       if (userRes.success) {
         setUser(userRes.data);
@@ -168,6 +176,10 @@ export function StudentDashboard({
     }
   };
 
+  if (activeQuizId) {
+    return <QuizSolve quizId={activeQuizId} onBack={() => setActiveQuizId(null)} />;
+  }
+
   return (
     <div className="min-h-screen bg-black">
       {/* Header */}
@@ -188,14 +200,24 @@ export function StudentDashboard({
               {/* Navigation Tabs */}
               <div className="flex gap-2">
                 <button
+                  onClick={() => setActiveTab('assignments')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'assignments'
+                    ? 'bg-white text-black'
+                    : 'text-gray-400 hover:text-white'
+                    }`}
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Assignments
+                </button>
+                <button
                   onClick={() => setActiveTab('problems')}
                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'problems'
                     ? 'bg-white text-black'
                     : 'text-gray-400 hover:text-white'
                     }`}
                 >
-                  <Code2 className="w-4 h-4" />
-                  Assignments
+                  <BookOpen className="w-4 h-4" />
+                  Practice Bank
                 </button>
                 <button
                   onClick={() => setActiveTab('profile')}
@@ -282,6 +304,52 @@ export function StudentDashboard({
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        ) : activeTab === 'assignments' ? (
+          <div className="space-y-6">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-white">Genuine Assignments</h2>
+            </div>
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {assignments.map(quiz => (
+                <div key={quiz._id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all flex flex-col group">
+                   <div className="flex justify-between items-start mb-4">
+                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                        <ClipboardList className="w-6 h-6 text-white" />
+                      </div>
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest ${quiz.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-zinc-800 text-gray-500'}`}>
+                        {quiz.status.toUpperCase()}
+                      </span>
+                   </div>
+                   <h3 className="text-xl font-bold text-white mb-2">{quiz.title}</h3>
+                   <p className="text-gray-400 text-sm mb-6 flex-grow line-clamp-2">{quiz.description || 'No description provided.'}</p>
+                   <div className="flex items-center gap-4 mb-6 text-xs text-gray-500 border-t border-zinc-800 pt-4">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5" />
+                        {quiz.durationMinutes} Mins
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Target className="w-3.5 h-3.5" />
+                        {quiz.questions?.length || 0} Problems
+                      </div>
+                   </div>
+                   <button 
+                     onClick={() => setActiveQuizId(quiz._id)} 
+                     disabled={quiz.status !== 'active'}
+                     className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all uppercase tracking-widest text-xs ${quiz.status === 'active' ? 'bg-white text-black hover:bg-gray-200' : 'bg-zinc-800 text-gray-600 cursor-not-allowed'}`}
+                   >
+                     <Play className="w-4 h-4 fill-current" /> {quiz.status === 'active' ? 'Start Assignment' : 'Inactive'}
+                   </button>
+                </div>
+              ))}
+              {assignments.length === 0 && (
+                <div className="col-span-full py-20 bg-zinc-900 border border-zinc-800 rounded-3xl text-center">
+                   <ClipboardList className="w-16 h-16 mx-auto mb-4 text-gray-700 opacity-50" />
+                   <p className="text-gray-500 text-lg">No assignments delegated to you yet.</p>
+                   <p className="text-gray-600 text-sm mt-2">Check back later or contact your instructor.</p>
+                </div>
+              )}
             </div>
           </div>
         ) : (

@@ -1,21 +1,14 @@
-import axios from 'axios';
-
-const DUALITY_API_URL = import.meta.env.VITE_DUALITY_API_URL || 'http://localhost:5000/api/duality';
-
-const getHeaders = () => {
-  const token = localStorage.getItem('dualityToken');
-  return { Authorization: `Bearer ${token}` };
-};
+import api from './dualityApi';
 
 // ─── Quiz CRUD ────────────────────────────────────────────────────────────────
 
 export const getQuizzes = async () => {
-  const res = await axios.get(`${DUALITY_API_URL}/quiz`, { headers: getHeaders() });
+  const res = await api.get('/duality/quiz');
   return res.data;
 };
 
 export const getQuiz = async (id: string) => {
-  const res = await axios.get(`${DUALITY_API_URL}/quiz/${id}`, { headers: getHeaders() });
+  const res = await api.get(`/duality/quiz/${id}`);
   return res.data;
 };
 
@@ -24,10 +17,11 @@ export const createQuiz = async (data: {
   description?: string;
   durationMinutes: number;
   questions: string[];
+  assignedTo?: string[];
   startTime?: string;
   endTime?: string;
 }) => {
-  const res = await axios.post(`${DUALITY_API_URL}/quiz`, data, { headers: getHeaders() });
+  const res = await api.post('/duality/quiz', data);
   return res.data;
 };
 
@@ -36,28 +30,29 @@ export const updateQuiz = async (id: string, data: Partial<{
   description: string;
   durationMinutes: number;
   questions: string[];
+  assignedTo: string[];
   status: string;
   startTime: string;
   endTime: string;
 }>) => {
-  const res = await axios.patch(`${DUALITY_API_URL}/quiz/${id}`, data, { headers: getHeaders() });
+  const res = await api.patch(`/duality/quiz/${id}`, data);
   return res.data;
 };
 
 export const deleteQuiz = async (id: string) => {
-  const res = await axios.delete(`${DUALITY_API_URL}/quiz/${id}`, { headers: getHeaders() });
+  const res = await api.delete(`/duality/quiz/${id}`);
   return res.data;
 };
 
 // ─── Quiz Lifecycle ───────────────────────────────────────────────────────────
 
 export const activateQuiz = async (id: string) => {
-  const res = await axios.patch(`${DUALITY_API_URL}/quiz/${id}/activate`, {}, { headers: getHeaders() });
+  const res = await api.patch(`/duality/quiz/${id}/activate`, {});
   return res.data;
 };
 
 export const endQuiz = async (id: string) => {
-  const res = await axios.patch(`${DUALITY_API_URL}/quiz/${id}/end`, {}, { headers: getHeaders() });
+  const res = await api.patch(`/duality/quiz/${id}/end`, {});
   return res.data;
 };
 
@@ -67,16 +62,17 @@ export const submitQuizAnswer = async (
   quizId: string,
   payload: { questionId: string; code: string; language: string }
 ) => {
-  const res = await axios.post(`${DUALITY_API_URL}/quiz/${quizId}/submit`, payload, { headers: getHeaders() });
+  const res = await api.post(`/duality/quiz/${quizId}/submit`, payload);
   return res.data;
 };
 
 export const getQuizResults = async (quizId: string) => {
-  const res = await axios.get(`${DUALITY_API_URL}/quiz/${quizId}/results`, { headers: getHeaders() });
+  const res = await api.get(`/duality/quiz/${quizId}/results`);
   return res.data;
 };
 
 export const getMyQuizResult = async (quizId: string) => {
-  const res = await axios.get(`${DUALITY_API_URL}/quiz/${quizId}/my-result`, { headers: getHeaders() });
+  const res = await api.get(`/duality/quiz/${quizId}/my-result`);
   return res.data;
 };
+
