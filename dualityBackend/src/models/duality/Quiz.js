@@ -47,6 +47,10 @@ const quizSchema = new mongoose.Schema(
       enum: ['draft', 'active', 'ended'],
       default: 'draft',
     },
+    isLockdown: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Clock, Code2, ChevronLeft, ChevronRight, Play, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowLeft, Clock, Code2, ChevronLeft, ChevronRight, Play, CheckCircle2, XCircle, AlertTriangle, Maximize, Shield } from 'lucide-react';
 import { getQuiz, submitQuizAnswer } from '../../services/quiz.service';
 import { getDualitySettings } from '../../services/duality.service';
 import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
@@ -33,10 +33,31 @@ export function QuizSolve({
   const [testResults, setTestResults] = useState<TestCaseResult[] | null>(null);
   const [settings, setSettings] = useState<{ isPasteEnabled?: boolean }>({ isPasteEnabled: true });
   
+  // Lockdown state
   useEffect(() => {
     fetchQuiz();
     getDualitySettings().then(res => { if(res.success) setSettings(res.data) }).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!quiz?.isLockdown) return;
+
+    const blockEvent = (e: Event) => {
+      e.preventDefault();
+      return false;
+    };
+    
+    // Anti-copy/paste/contextmenu for lockdown
+    document.addEventListener('contextmenu', blockEvent);
+    document.addEventListener('copy', blockEvent);
+    document.addEventListener('paste', blockEvent);
+
+    return () => {
+      document.removeEventListener('contextmenu', blockEvent);
+      document.removeEventListener('copy', blockEvent);
+      document.removeEventListener('paste', blockEvent);
+    };
+  }, [quiz]);
 
   // Timer logic
   useEffect(() => {
@@ -263,7 +284,7 @@ export function QuizSolve({
                       onChange={setCode} 
                       onRun={handleRunCode} 
                       onSubmit={handleSubmit} 
-                      disablePaste={!settings.isPasteEnabled} 
+                      disablePaste={quiz?.isLockdown || !settings.isPasteEnabled} 
                     />
                   </Panel>
 

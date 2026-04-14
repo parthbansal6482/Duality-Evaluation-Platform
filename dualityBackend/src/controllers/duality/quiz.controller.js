@@ -10,7 +10,7 @@ const { runTestCases } = require('../../services/execution.service');
 exports.createQuiz = async (req, res) => {
     try {
         const Quiz = getQuiz();
-        const { title, description, durationMinutes, startTime, endTime, questions, assignedTo } = req.body;
+        const { title, description, durationMinutes, startTime, endTime, questions, assignedTo, isLockdown } = req.body;
         if (!title) {
             return res.status(400).json({ success: false, message: 'title is required' });
         }
@@ -27,6 +27,7 @@ exports.createQuiz = async (req, res) => {
             assignedTo: assignedTo || [],
             createdBy: req.dualityUser._id,
             status: 'active',
+            isLockdown: !!isLockdown,
         });
         res.status(201).json({ success: true, data: quiz });
     } catch (error) {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList, Clock } from 'lucide-react';
+import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList, Clock, Shield } from 'lucide-react';
 import { getQuizzes, createQuiz, updateQuiz, deleteQuiz, activateQuiz, endQuiz } from '../../services/quiz.service';
 import { DateTimePicker } from '../ui/DateTimePicker';
 
@@ -143,7 +143,8 @@ export function AdminDashboard({
     startTime: '',
     endTime: '',
     questions: [] as string[],
-    assignedTo: [] as string[]
+    assignedTo: [] as string[],
+    isLockdown: false
   });
 
   const [formData, setFormData] = useState({
@@ -312,15 +313,28 @@ export function AdminDashboard({
 
   const resetAssignmentForm = (quiz?: any) => {
     if (quiz) {
+      const formatToLocalISO = (dateStr: string) => {
+        if (!dateStr) return '';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return '';
+        const year = d.getFullYear();
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const hours = String(d.getHours()).padStart(2, '0');
+        const minutes = String(d.getMinutes()).padStart(2, '0');
+        return `${year}-${month}-${day}T${hours}:${minutes}`;
+      };
+
       setAssignmentFormData({
         _id: quiz._id,
         title: quiz.title,
         description: quiz.description || '',
         durationMinutes: quiz.durationMinutes || 60,
-        startTime: quiz.startTime ? new Date(quiz.startTime).toISOString().slice(0, 16) : '',
-        endTime: quiz.endTime ? new Date(quiz.endTime).toISOString().slice(0, 16) : '',
+        startTime: formatToLocalISO(quiz.startTime),
+        endTime: formatToLocalISO(quiz.endTime),
         questions: quiz.questions?.map((q: any) => q._id || q) || [],
-        assignedTo: quiz.assignedTo?.map((u: any) => u._id || u) || []
+        assignedTo: quiz.assignedTo?.map((u: any) => u._id || u) || [],
+        isLockdown: quiz.isLockdown || false
       });
     } else {
       setAssignmentFormData({
@@ -331,7 +345,8 @@ export function AdminDashboard({
         startTime: '',
         endTime: '',
         questions: [],
-        assignedTo: []
+        assignedTo: [],
+        isLockdown: false
       });
     }
   };
@@ -1674,6 +1689,23 @@ export function AdminDashboard({
                   ))}
                   {students.length === 0 && <p className="text-center text-gray-500 py-4 text-sm">No students registered.</p>}
                 </div>
+              </div>
+
+              <div className="flex items-center justify-between bg-zinc-800/50 border border-zinc-800 p-4 rounded-xl">
+                <div className="flex items-center gap-3">
+                  <Shield className={`w-5 h-5 ${assignmentFormData.isLockdown ? 'text-red-500' : 'text-gray-500'}`} />
+                  <div>
+                    <p className="text-sm font-bold text-white uppercase tracking-tighter">Complete Lockdown Mode</p>
+                    <p className="text-[10px] text-gray-500">Block Copying, Pasting, and Right-Click</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAssignmentFormData({ ...assignmentFormData, isLockdown: !assignmentFormData.isLockdown })}
+                  className={`w-12 h-6 rounded-full relative transition-colors ${assignmentFormData.isLockdown ? 'bg-red-600' : 'bg-zinc-700'}`}
+                >
+                  <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${assignmentFormData.isLockdown ? 'translate-x-6' : ''}`} />
+                </button>
               </div>
 
               <div className="flex gap-4 pt-4">
