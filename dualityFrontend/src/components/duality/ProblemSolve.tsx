@@ -409,7 +409,7 @@ export function ProblemSolve({
                               <XCircle className="w-4 h-4 text-red-500" />
                             )}
                             <span className={`font-medium ${test.passed ? 'text-green-500' : 'text-red-500'}`}>
-                              Test Case {index + 1}
+                              Test Case {index + 1} {index < (problem?.examples?.length || 0) ? '(Example)' : '(Hidden)'}
                             </span>
                           </div>
                           <div className="space-y-3 text-sm">

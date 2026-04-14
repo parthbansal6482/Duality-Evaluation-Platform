@@ -60,7 +60,7 @@ export const endQuiz = async (id: string) => {
 
 export const submitQuizAnswer = async (
   quizId: string,
-  payload: { questionId: string; code: string; language: string }
+  payload: { questionId: string; code: string; language: string; isRunOnly?: boolean }
 ) => {
   const res = await api.post(`/duality/quiz/${quizId}/submit`, payload);
   return res.data;

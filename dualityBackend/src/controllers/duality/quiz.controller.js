@@ -157,7 +157,7 @@ exports.submitQuizAnswer = async (req, res) => {
         const DualityQuestion = getDualityQuestion();
         const DualityUser = getDualityUser();
 
-        const { questionId, code, language } = req.body;
+        const { questionId, code, language, isRunOnly = false } = req.body;
         const quizId = req.params.id;
         const userId = req.dualityUser._id;
 
@@ -190,20 +190,26 @@ exports.submitQuizAnswer = async (req, res) => {
             expectedOutput: ex.output,
             id: `quiz_example_${i}`,
         }));
-        const hiddenCases = (question.testCases || []).map((tc, i) => ({
-            input: tc.input,
-            expectedOutput: tc.output,
-            id: `quiz_test_${i}`,
-        }));
-        const allTestCases = [...visibleCases, ...hiddenCases];
+        
+        let casesToRun = [];
+        if (isRunOnly) {
+            casesToRun = visibleCases;
+        } else {
+            const hiddenCases = (question.testCases || []).map((tc, i) => ({
+                input: tc.input,
+                expectedOutput: tc.output,
+                id: `quiz_test_${i}`,
+            }));
+            casesToRun = [...visibleCases, ...hiddenCases];
+        }
 
-        if (allTestCases.length === 0) {
+        if (casesToRun.length === 0) {
             return res.status(400).json({ success: false, message: 'No test cases configured for this question' });
         }
 
         // Execute code
         const driverCode = question.driverCode ? question.driverCode[language] : '';
-        const result = await runTestCases(code, language, allTestCases, driverCode);
+        const result = await runTestCases(code, language, casesToRun, driverCode);
 
         // Determine status
         let status = 'accepted';
@@ -212,6 +218,25 @@ exports.submitQuizAnswer = async (req, res) => {
         else if (result.results.some(r => r.exitCode === 137)) status = 'memory_limit_exceeded';
         const hasRTE = result.results.some(r => r.error && !r.error.includes('timeout') && r.exitCode !== 137);
         if (hasRTE && (status === 'accepted' || status === 'wrong_answer')) status = 'runtime_error';
+
+        // If it's just a run, return immediately without saving
+        if (isRunOnly) {
+            return res.status(200).json({
+                success: true,
+                message: 'Run complete',
+                data: {
+                    status,
+                    results: result.results.map(r => ({
+                        passed: r.passed,
+                        input: r.input,
+                        expectedOutput: r.expectedOutput,
+                        actualOutput: r.actualOutput,
+                        error: r.error,
+                        executionTime: r.executionTime,
+                    })),
+                },
+            });
+        }
 
         // Points based on difficulty
         const pointsMap = { Easy: 100, Medium: 200, Hard: 300 };
@@ -255,7 +280,7 @@ exports.submitQuizAnswer = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: 'Answer evaluated',
+            message: 'Answer evaluated and saved',
             data: {
                 status,
                 score,
