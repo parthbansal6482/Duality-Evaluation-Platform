@@ -248,10 +248,11 @@ export function ProblemSolve({
       </header>
 
       {/* Main Content */}
-      <div className="flex-1 grid grid-cols-2 overflow-hidden">
-        {/* Left Panel - Problem Description */}
-        <div className="border-r border-zinc-800 overflow-y-auto">
-          <div className="p-6 space-y-6">
+      <div className="flex-1 overflow-hidden">
+        <PanelGroup direction="horizontal">
+          {/* Left Panel - Problem Description */}
+          <Panel defaultSize={40} minSize={25} className="border-r border-zinc-800 overflow-y-auto bg-zinc-950/30">
+            <div className="p-6 space-y-6">
             {/* Description */}
             <div>
               <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
@@ -306,10 +307,12 @@ export function ProblemSolve({
               </div>
             )}
           </div>
-        </div>
+        </Panel>
+
+        <PanelResizeHandle className="w-1 bg-zinc-800 hover:bg-blue-500 transition-colors cursor-col-resize" />
 
         {/* Right Panel - Code Editor */}
-        <div className="flex flex-col overflow-hidden bg-black">
+        <Panel defaultSize={60} minSize={30} className="flex flex-col bg-black">
           {/* Header & Controls */}
           <div className="bg-zinc-900 border-b border-zinc-800 px-6 py-3 flex items-center justify-between">
             <div className="flex gap-2">
@@ -446,8 +449,9 @@ export function ProblemSolve({
               )}
             </PanelGroup>
           </div>
-        </div>
-      </div>
+        </Panel>
+      </PanelGroup>
     </div>
+  </div>
   );
 }

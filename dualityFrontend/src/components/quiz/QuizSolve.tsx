@@ -153,8 +153,9 @@ export function QuizSolve({
            </div>
        </header>
 
-       <div className="flex-1 flex overflow-hidden">
-           <div className="w-1/3 border-r border-zinc-800 p-6 overflow-y-auto bg-zinc-950">
+       <div className="flex-1 overflow-hidden">
+        <PanelGroup direction="horizontal">
+           <Panel defaultSize={35} minSize={20} className="border-r border-zinc-800 p-6 overflow-y-auto bg-zinc-950">
                <h2 className="text-2xl font-bold text-white mb-2">{q.title}</h2>
                <div className="flex gap-2 mb-6">
                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-500' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>{q.difficulty}</span>
@@ -173,9 +174,11 @@ export function QuizSolve({
                     </div>
                 ))}
                </div>
-           </div>
+           </Panel>
 
-           <div className="flex-1 flex flex-col bg-black">
+           <PanelResizeHandle className="w-1 bg-zinc-800 hover:bg-blue-500 transition-colors cursor-col-resize" />
+
+           <Panel defaultSize={65} minSize={30} className="flex flex-col bg-black">
                <div className="bg-zinc-900 border-b border-zinc-800 px-6 py-3 flex items-center justify-between">
                    <div className="flex gap-2">
                        {(['python', 'c', 'cpp', 'java'] as const).map(lang => (
@@ -283,7 +286,8 @@ export function QuizSolve({
                    <button onClick={handlePrev} disabled={currentQIdx===0} className="px-4 py-1.5 bg-zinc-800 text-gray-400 hover:text-white rounded text-sm border border-zinc-700 flex items-center gap-2 disabled:opacity-30 transition-colors uppercase font-bold text-[10px] tracking-widest"><ChevronLeft className="w-4 h-4"/> Previous</button>
                    <button onClick={handleNext} disabled={currentQIdx===quiz.questions.length-1} className="px-4 py-1.5 bg-zinc-800 text-gray-400 hover:text-white rounded text-sm border border-zinc-700 flex items-center gap-2 disabled:opacity-30 transition-colors uppercase font-bold text-[10px] tracking-widest">Next <ChevronRight className="w-4 h-4"/></button>
                </div>
-           </div>
+           </Panel>
+        </PanelGroup>
        </div>
     </div>
   );
