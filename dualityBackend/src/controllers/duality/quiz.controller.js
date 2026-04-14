@@ -25,6 +25,8 @@ exports.createQuiz = async (req, res) => {
             endTime: endTime || null,
             questions: questions || [],
             assignedTo: assignedTo || [],
+            targetYear: req.body.targetYear || 'All',
+            targetSection: req.body.targetSection || 'All',
             createdBy: req.dualityUser._id,
             status: 'active',
             isLockdown: !!isLockdown,
@@ -45,12 +47,19 @@ exports.getQuizzes = async (req, res) => {
         // Students only see quizzes assigned to them that are currently within the scheduled window
         const now = new Date();
         const filter = isAdmin ? {} : { 
-            assignedTo: req.dualityUser._id,
             $or: [
-                { status: 'active' }, // Support legacy active quizzes
+                { assignedTo: req.dualityUser._id },
+                { targetYear: { $in: [req.dualityUser.year, 'All'] } }
+            ],
+            $and: [
                 {
-                    startTime: { $lte: now },
-                    endTime: { $gte: now }
+                    $or: [
+                        { status: 'active' },
+                        {
+                            startTime: { $lte: now },
+                            endTime: { $gte: now }
+                        }
+                    ]
                 }
             ]
         };
@@ -59,6 +68,20 @@ exports.getQuizzes = async (req, res) => {
             .populate('assignedTo', 'name email')
             .populate('createdBy', 'name')
             .sort({ createdAt: -1 });
+
+        // For students, add submission status
+        if (req.dualityUser.role !== 'admin') {
+            const QuizSubmission = getQuizSubmission();
+            const studentQuizzes = await Promise.all(quizzes.map(async (quiz) => {
+                const submission = await QuizSubmission.findOne({ quiz: quiz._id, student: req.dualityUser._id }, 'isComplete totalScore');
+                return {
+                    ...quiz.toObject(),
+                    isComplete: submission ? submission.isComplete : false,
+                    score: submission ? submission.totalScore : 0
+                };
+            }));
+            return res.status(200).json({ success: true, data: studentQuizzes });
+        }
 
         res.status(200).json({ success: true, data: quizzes });
     } catch (error) {
@@ -83,7 +106,10 @@ exports.getQuiz = async (req, res) => {
             if (quiz.status !== 'active') {
                 return res.status(403).json({ success: false, message: 'This quiz is not currently active' });
             }
-            if (!quiz.assignedTo || !quiz.assignedTo.some(userId => userId.toString() === req.dualityUser._id.toString())) {
+            const isAssignedIndividually = quiz.assignedTo && quiz.assignedTo.some(userId => userId.toString() === req.dualityUser._id.toString());
+            const isAssignedToCohort = (quiz.targetYear === 'All' || quiz.targetYear === req.dualityUser.year);
+
+            if (!isAssignedIndividually && !isAssignedToCohort) {
                 return res.status(403).json({ success: false, message: 'You are not assigned to this quiz' });
             }
             if (quiz.startTime && now < new Date(quiz.startTime)) {
@@ -203,6 +229,12 @@ exports.submitQuizAnswer = async (req, res) => {
             return res.status(400).json({ success: false, message: 'This assignment has ended. Submissions are closed.' });
         }
 
+        // Check if user already finalized
+        let submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
+        if (submission && submission.isComplete) {
+            return res.status(403).json({ success: false, message: 'Assignment is already finalized and submitted.' });
+        }
+
         // Validate question belongs to quiz
         const questionInQuiz = quiz.questions.some(q => q.toString() === questionId);
         if (!questionInQuiz) {
@@ -274,7 +306,7 @@ exports.submitQuizAnswer = async (req, res) => {
         const score = status === 'accepted' ? (pointsMap[question.difficulty] || 100) : 0;
 
         // Upsert quiz submission (one per student per quiz)
-        let submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
+        submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
         if (!submission) {
             submission = await QuizSubmission.create({
                 quiz: quizId,
@@ -329,6 +361,88 @@ exports.submitQuizAnswer = async (req, res) => {
     } catch (error) {
         console.error('submitQuizAnswer error:', error);
         res.status(500).json({ success: false, message: 'Error evaluating answer', error: error.message });
+    }
+};
+
+/**
+ * POST /api/duality/quiz/:id/save-draft
+ * Save current code as draft without running tests.
+ */
+exports.saveQuizDraft = async (req, res) => {
+    try {
+        const QuizSubmission = getQuizSubmission();
+        const { questionId, code, language } = req.body;
+        const quizId = req.params.id;
+        const userId = req.dualityUser._id;
+
+        if (!questionId || code === undefined || !language) {
+            return res.status(400).json({ success: false, message: 'questionId, code, and language are required' });
+        }
+
+        let submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
+        if (submission && submission.isComplete) {
+            return res.status(403).json({ success: false, message: 'Assignment is already finalized.' });
+        }
+
+        if (!submission) {
+            submission = await QuizSubmission.create({
+                quiz: quizId,
+                student: userId,
+                answers: [],
+                totalScore: 0,
+                startedAt: new Date(),
+            });
+        }
+
+        const existingIdx = submission.answers.findIndex(a => a.question.toString() === questionId);
+        if (existingIdx >= 0) {
+            submission.answers[existingIdx].code = code;
+            submission.answers[existingIdx].language = language;
+        } else {
+            submission.answers.push({
+                question: questionId,
+                code,
+                language,
+                status: 'not_attempted',
+                score: 0,
+            });
+        }
+
+        await submission.save();
+        res.status(200).json({ success: true, message: 'Draft saved' });
+    } catch (error) {
+        console.error('saveQuizDraft error:', error);
+        res.status(500).json({ success: false, message: 'Error saving draft', error: error.message });
+    }
+};
+
+/**
+ * POST /api/duality/quiz/:id/finalize
+ * Marks the quiz as complete for the student.
+ */
+exports.finalizeQuizSubmission = async (req, res) => {
+    try {
+        const QuizSubmission = getQuizSubmission();
+        const quizId = req.params.id;
+        const userId = req.dualityUser._id;
+
+        const submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
+        if (!submission) {
+            return res.status(404).json({ success: false, message: 'No submission found to finalize' });
+        }
+
+        if (submission.isComplete) {
+            return res.status(400).json({ success: false, message: 'Already finalized' });
+        }
+
+        submission.isComplete = true;
+        submission.submittedAt = new Date();
+        await submission.save();
+
+        res.status(200).json({ success: true, message: 'Assignment finalized and submitted' });
+    } catch (error) {
+        console.error('finalizeQuizSubmission error:', error);
+        res.status(500).json({ success: false, message: 'Error finalizing quiz', error: error.message });
     }
 };
 

@@ -1,9 +1,21 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Clock, Code2, ChevronLeft, ChevronRight, Play, CheckCircle2, XCircle, AlertTriangle, Maximize, Shield } from 'lucide-react';
-import { getQuiz, submitQuizAnswer } from '../../services/quiz.service';
-import { getDualitySettings } from '../../services/duality.service';
+import { getQuiz, submitQuizAnswer, saveQuizDraft, finalizeQuizSubmission, getMyQuizResult } from '../../services/quiz.service';
 import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
+
+// Custom debounce effect hook
+function useDebounceEffect(fn: () => void, delay: number, deps: any[]) {
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fn();
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [...deps, delay]);
+}
 
 interface TestCaseResult {
   passed: boolean;
@@ -28,15 +40,16 @@ export function QuizSolve({
   const [loading, setLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFinalizing, setIsFinalizing] = useState(false);
+  const [isLocked, setIsLocked] = useState(false);
+  const [userAnswers, setUserAnswers] = useState<any[]>([]);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [isExpired, setIsExpired] = useState(false);
   const [testResults, setTestResults] = useState<TestCaseResult[] | null>(null);
-  const [settings, setSettings] = useState<{ isPasteEnabled?: boolean }>({ isPasteEnabled: true });
   
   // Lockdown state
   useEffect(() => {
     fetchQuiz();
-    getDualitySettings().then(res => { if(res.success) setSettings(res.data) }).catch(console.error);
   }, []);
 
   useEffect(() => {
@@ -96,11 +109,29 @@ export function QuizSolve({
 
   const fetchQuiz = async () => {
     try {
-      const data = await getQuiz(quizId);
-      if (data.success) {
-          setQuiz(data.data);
-          if (data.data.questions?.length > 0) {
-              setCode(data.data.questions[0].boilerplate?.python || '');
+      const [quizData, myResult] = await Promise.all([
+        getQuiz(quizId),
+        getMyQuizResult(quizId).catch(() => ({ success: false, data: null }))
+      ]);
+
+      if (quizData.success) {
+          setQuiz(quizData.data);
+          
+          if (myResult.success && myResult.data) {
+            setUserAnswers(myResult.data.answers || []);
+            setIsLocked(myResult.data.isComplete || false);
+            
+            // Populate initial code if we have an answer for the first question
+            const firstQId = quizData.data.questions[0]?._id;
+            const existing = (myResult.data.answers || []).find((a: any) => a.question?._id === firstQId || a.question === firstQId);
+            if (existing) {
+              setCode(existing.code);
+              setLanguage(existing.language || 'python');
+            } else if (quizData.data.questions?.length > 0) {
+              setCode(quizData.data.questions[0].boilerplate?.python || '');
+            }
+          } else if (quizData.data.questions?.length > 0) {
+              setCode(quizData.data.questions[0].boilerplate?.python || '');
           }
       }
     } catch (err) {
@@ -110,10 +141,30 @@ export function QuizSolve({
     }
   };
 
+  const syncCodeFromAnswers = (idx: number, lang: string) => {
+    const qId = quiz.questions[idx]._id;
+    const existing = userAnswers.find((a: any) => a.question?._id === qId || a.question === qId);
+    if (existing) {
+      setCode(existing.code);
+      setLanguage(existing.language as any);
+    } else {
+      setCode(quiz.questions[idx].boilerplate?.[lang] || '');
+      setLanguage(lang as any);
+    }
+  };
+
   const handleLanguageChange = (lang: 'python' | 'c' | 'cpp' | 'java') => {
+      if (isLocked) return;
       setLanguage(lang);
       const q = quiz.questions[currentQIdx];
-      setCode(q.boilerplate?.[lang] || '');
+      
+      // Check if we have this lang in drafts or just boilerplate
+      const existing = userAnswers.find((a: any) => (a.question?._id === q._id || a.question === q._id) && a.language === lang);
+      if (existing) {
+        setCode(existing.code);
+      } else {
+        setCode(q.boilerplate?.[lang] || '');
+      }
       setTestResults(null);
   };
 
@@ -121,7 +172,7 @@ export function QuizSolve({
       if (currentQIdx < quiz.questions.length - 1) {
           const nextIdx = currentQIdx + 1;
           setCurrentQIdx(nextIdx);
-          setCode(quiz.questions[nextIdx].boilerplate?.[language] || '');
+          syncCodeFromAnswers(nextIdx, language);
           setTestResults(null);
       }
   };
@@ -130,12 +181,13 @@ export function QuizSolve({
       if (currentQIdx > 0) {
           const prevIdx = currentQIdx - 1;
           setCurrentQIdx(prevIdx);
-          setCode(quiz.questions[prevIdx].boilerplate?.[language] || '');
+          syncCodeFromAnswers(prevIdx, language);
           setTestResults(null);
       }
   };
 
   const handleRunCode = async () => {
+    if (isLocked) return;
     setIsRunning(true);
     setTestResults(null);
     try {
@@ -160,6 +212,7 @@ export function QuizSolve({
   };
 
   const handleSubmit = async () => {
+    if (isLocked) return;
     setIsSubmitting(true);
     setTestResults(null);
     try {
@@ -172,6 +225,18 @@ export function QuizSolve({
         });
         if (res.success && res.data) {
             setTestResults(res.data.results);
+            
+            // Update local answers cache
+            setUserAnswers(prev => {
+              const idx = prev.findIndex(a => a.question?._id === qId || a.question === qId);
+              if (idx >= 0) {
+                const newArr = [...prev];
+                newArr[idx] = { ...newArr[idx], code, language, status: res.data.status, score: res.data.score };
+                return newArr;
+              }
+              return [...prev, { question: qId, code, language, status: res.data.status, score: res.data.score }];
+            });
+
             if (res.data.status === 'accepted') {
               alert('Perfect! Answer accepted and saved.');
             } else {
@@ -187,6 +252,54 @@ export function QuizSolve({
         setIsSubmitting(false);
     }
   };
+
+  const handleFinalSubmit = async () => {
+    if (isLocked) return;
+    if (!confirm('Are you sure you want to finalize your assignment? You won\'t be able to edit your answers after this.')) return;
+
+    setIsFinalizing(true);
+    try {
+      const res = await finalizeQuizSubmission(quizId);
+      if (res.success) {
+        alert('Assignment submitted successfully!');
+        setIsLocked(true);
+        onBack();
+      } else {
+        alert('Failed to finalize: ' + (res.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error finalizing assignment.');
+    } finally {
+      setIsFinalizing(false);
+    }
+  };
+
+  // Auto-save draft (debounced)
+  useDebounceEffect(() => {
+    if (!quiz || !code || loading || isLocked || isExpired) return;
+
+    const saveDraft = async () => {
+      try {
+        const qId = quiz.questions[currentQIdx]._id;
+        await saveQuizDraft(quizId, { questionId: qId, code, language });
+        
+        // Update local answers cache silently
+        setUserAnswers(prev => {
+          const idx = prev.findIndex(a => a.question?._id === qId || a.question === qId);
+          if (idx >= 0) {
+            const newArr = [...prev];
+            newArr[idx] = { ...newArr[idx], code, language };
+            return newArr;
+          }
+          return [...prev, { question: qId, code, language }];
+        });
+      } catch (err) {
+        console.error('Failed to auto-save quiz draft:', err);
+      }
+    };
+    saveDraft();
+  }, 5000, [code, language, currentQIdx, quizId, loading, isLocked, isExpired]);
 
   if (loading) return <div className="min-h-screen bg-black text-white flex items-center justify-center">Loading...</div>;
   if (!quiz || !quiz.questions?.length) return <div className="min-h-screen bg-black text-white p-6">Quiz not found or has no questions.<br/><button onClick={onBack} className="mt-4 text-blue-500">Go Back</button></div>;
@@ -215,29 +328,49 @@ export function QuizSolve({
             <div className="flex gap-2 items-center text-sm bg-zinc-800 px-4 py-1.5 rounded-full border border-zinc-700">
              Question {currentQIdx + 1} of {quiz.questions.length}
             </div>
+            
+            {!isLocked && !isExpired && (
+              <button 
+                onClick={handleFinalSubmit}
+                disabled={isFinalizing}
+                className="bg-red-600 hover:bg-red-500 text-white px-4 py-1.5 rounded-full text-xs font-bold transition-colors flex items-center gap-2"
+              >
+                {isFinalizing ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"/> : <Shield className="w-3.5 h-3.5"/>}
+                Final Submit
+              </button>
+            )}
+
+            {isLocked && (
+              <div className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-green-500/10 border border-green-500/50 text-green-500 text-xs font-bold uppercase">
+                <CheckCircle2 className="w-3.5 h-3.5"/>
+                Finalized
+              </div>
+            )}
            </div>
        </header>
 
        <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal">
-           <Panel defaultSize={35} minSize={20} className="border-r border-zinc-800 p-6 overflow-y-auto bg-zinc-950">
-               <h2 className="text-2xl font-bold text-white mb-2">{q.title}</h2>
-               <div className="flex gap-2 mb-6">
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-500' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>{q.difficulty}</span>
-                <span className="px-2 py-0.5 rounded bg-zinc-800 text-gray-400 text-[10px] font-bold uppercase">{q.category}</span>
-               </div>
-               <div className="text-gray-300 whitespace-pre-line mb-8 text-sm leading-relaxed">{q.description}</div>
-               
-               <div className="space-y-4">
-                <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Examples</h3>
-                {q.examples?.map((ex: any, i: number) => (
-                    <div key={i} className="bg-zinc-900 p-4 rounded-lg border border-zinc-800 font-mono text-xs">
-                        <span className="text-gray-500 block mb-1 uppercase text-[10px]">Input</span>
-                        <div className="text-white mb-3 bg-black/50 p-2 rounded">{ex.input}</div>
-                        <span className="text-gray-500 block mb-1 uppercase text-[10px]">Expected Output</span>
-                        <div className="text-green-400 bg-black/50 p-2 rounded">{ex.output}</div>
-                    </div>
-                ))}
+           <Panel defaultSize={35} minSize={20} className="border-r border-zinc-800 bg-zinc-950">
+               <div className="h-full overflow-y-auto p-6">
+                   <h2 className="text-2xl font-bold text-white mb-2">{q.title}</h2>
+                   <div className="flex gap-2 mb-6">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${q.difficulty === 'Easy' ? 'bg-green-500/10 text-green-500' : q.difficulty === 'Medium' ? 'bg-yellow-500/10 text-yellow-500' : 'bg-red-500/10 text-red-500'}`}>{q.difficulty}</span>
+                    <span className="px-2 py-0.5 rounded bg-zinc-800 text-gray-400 text-[10px] font-bold uppercase">{q.category}</span>
+                   </div>
+                   <div className="text-gray-300 whitespace-pre-line mb-8 text-sm leading-relaxed">{q.description}</div>
+                   
+                   <div className="space-y-4">
+                    <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">Examples</h3>
+                    {q.examples?.map((ex: any, i: number) => (
+                        <div key={i} className="bg-zinc-900 p-4 rounded-lg border border-zinc-800 font-mono text-xs">
+                            <span className="text-gray-500 block mb-1 uppercase text-[10px]">Input</span>
+                            <div className="text-white mb-3 bg-black/50 p-2 rounded">{ex.input}</div>
+                            <span className="text-gray-500 block mb-1 uppercase text-[10px]">Expected Output</span>
+                            <div className="text-green-400 bg-black/50 p-2 rounded">{ex.output}</div>
+                        </div>
+                    ))}
+                   </div>
                </div>
            </Panel>
 
@@ -259,7 +392,7 @@ export function QuizSolve({
                    <div className="flex gap-2">
                     <button 
                       onClick={handleRunCode} 
-                      disabled={isRunning || isSubmitting || isExpired} 
+                      disabled={isRunning || isSubmitting || isExpired || isLocked} 
                       className="bg-zinc-800 text-gray-300 px-4 py-1.5 rounded text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {isRunning ? <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"/> : <Play className="w-4 h-4"/>}
@@ -267,7 +400,7 @@ export function QuizSolve({
                     </button>
                     <button 
                       onClick={handleSubmit} 
-                      disabled={isRunning || isSubmitting || isExpired} 
+                      disabled={isRunning || isSubmitting || isExpired || isLocked} 
                       className="bg-blue-600 text-white px-6 py-1.5 rounded text-sm font-bold hover:bg-blue-500 disabled:opacity-50"
                     >
                       {isSubmitting ? 'Submitting...' : 'Submit Answer'}
@@ -284,7 +417,8 @@ export function QuizSolve({
                       onChange={setCode} 
                       onRun={handleRunCode} 
                       onSubmit={handleSubmit} 
-                      disablePaste={quiz?.isLockdown || !settings.isPasteEnabled} 
+                      disablePaste={!!quiz?.isLockdown} 
+                      readOnly={isLocked}
                     />
                   </Panel>
 

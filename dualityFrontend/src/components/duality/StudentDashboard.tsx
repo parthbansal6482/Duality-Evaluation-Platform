@@ -321,14 +321,20 @@ export function StudentDashboard({
                  const isLocked = quiz.status !== 'active' || isUpcoming || isEnded;
 
                  return (
-                  <div key={quiz._id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all flex flex-col group">
+                  <div key={quiz._id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all flex flex-col group relative overflow-hidden">
+                    {quiz.isComplete && (
+                      <div className="absolute top-0 right-0 bg-green-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-tighter z-10">
+                        Completed
+                      </div>
+                    )}
+                    
                     <div className="flex justify-between items-start mb-4">
                         <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
                           <ClipboardList className="w-6 h-6 text-white" />
                         </div>
                         <div className="flex flex-col items-end gap-2">
-                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest ${isLocked ? 'bg-zinc-800 text-gray-500' : 'bg-green-500/10 text-green-500'}`}>
-                            {isUpcoming ? 'UPCOMING' : isEnded ? 'ENDED' : quiz.status.toUpperCase()}
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest ${isLocked || quiz.isComplete ? 'bg-zinc-800 text-gray-500' : 'bg-green-500/10 text-green-500'}`}>
+                            {quiz.isComplete ? 'SUBMITTED' : isUpcoming ? 'UPCOMING' : isEnded ? 'ENDED' : quiz.status.toUpperCase()}
                           </span>
                           {quiz.createdBy?.name && (
                             <span className="text-[10px] text-gray-400 font-medium italic">by {quiz.createdBy.name}</span>
@@ -348,21 +354,35 @@ export function StudentDashboard({
                           {startTime ? startTime.toLocaleString() : 'N/A'} — {endTime ? endTime.toLocaleString() : 'N/A'}
                         </div>
                       </div>
-                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                      <div className="flex items-center justify-between text-xs text-gray-500">
                         <div className="flex items-center gap-1.5">
                           <Target className="w-3.5 h-3.5" />
                           {quiz.questions?.length || 0} Problems
                         </div>
+                        {quiz.isComplete && (
+                          <div className="text-green-500 font-bold">
+                            Score: {quiz.score}
+                          </div>
+                        )}
                       </div>
                     </div>
 
                     <button 
-                      onClick={() => setActiveQuizId(quiz._id)} 
-                      disabled={isLocked}
-                      className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all uppercase tracking-widest text-xs ${!isLocked ? 'bg-white text-black hover:bg-gray-200' : 'bg-zinc-800 text-gray-600 cursor-not-allowed'}`}
+                      onClick={() => !quiz.isComplete && setActiveQuizId(quiz._id)} 
+                      disabled={isLocked || quiz.isComplete}
+                      className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all uppercase tracking-widest text-xs ${(!isLocked && !quiz.isComplete) ? 'bg-white text-black hover:bg-gray-200' : 'bg-zinc-800 text-gray-600 cursor-not-allowed'}`}
                     >
-                      <Play className="w-4 h-4 fill-current" /> 
-                      {isUpcoming ? 'Starting Soon' : isEnded ? 'Ended' : quiz.status === 'active' ? 'Start Assignment' : 'Inactive'}
+                      {quiz.isComplete ? (
+                        <>
+                          <CheckCircle2 className="w-4 h-4" />
+                          Submitted
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-4 h-4 fill-current" /> 
+                          {isUpcoming ? 'Starting Soon' : isEnded ? 'Ended' : quiz.status === 'active' ? 'Start Assignment' : 'Inactive'}
+                        </>
+                      )}
                     </button>
                   </div>
                  );

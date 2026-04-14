@@ -38,6 +38,7 @@ const dualityQuestionRoutes = require('./routes/duality/dualityQuestion.routes')
 const dualitySubmissionRoutes = require('./routes/duality/dualitySubmission.routes');
 const dualitySettingsRoutes = require('./routes/duality/dualitySettings.routes');
 const quizRoutes = require('./routes/duality/quiz.routes');
+const dualityImportRoutes = require('./routes/duality/dualityImport.routes');
 
 // ── App setup ────────────────────────────────────────────────────────────────
 const app = express();
@@ -154,6 +155,7 @@ app.use('/api/duality/questions', dualityQuestionRoutes);
 app.use('/api/duality/submissions', dualitySubmissionRoutes);
 app.use('/api/duality/settings', dualitySettingsRoutes);
 app.use('/api/duality/quiz', quizRoutes);
+app.use('/api/duality/import', dualityImportRoutes);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {

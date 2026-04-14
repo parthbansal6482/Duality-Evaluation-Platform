@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList, Clock, Shield } from 'lucide-react';
-import { getQuizzes, createQuiz, updateQuiz, deleteQuiz, activateQuiz, endQuiz } from '../../services/quiz.service';
+import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList, Clock, Shield, Upload, FileSpreadsheet } from 'lucide-react';
+import { getQuizzes, createQuiz, updateQuiz, deleteQuiz, activateQuiz, endQuiz, getQuizResults } from '../../services/quiz.service';
 import { DateTimePicker } from '../ui/DateTimePicker';
 
 interface TestCase {
@@ -28,7 +28,8 @@ import {
   deleteDualityQuestion,
   getDualityUsers,
   getDualitySettings,
-  updateDualitySettings
+  updateDualitySettings,
+  importDualityStudents
 } from '../../services/duality.service';
 import dualitySocketService from '../../services/dualitySocket.service';
 
@@ -60,6 +61,7 @@ interface Student {
   streak: number;
   lastActiveDate?: string | null;
   rank: number;
+  year?: string;
 }
 
 
@@ -117,7 +119,6 @@ export function AdminDashboard({
   onLogout: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<ActiveTab>('questions');
-  const [isOpenRegistration, setIsOpenRegistration] = useState(false);
   const [isPasteEnabled, setIsPasteEnabled] = useState(true);
   const [questions, setQuestions] = useState<Question[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<'All' | 'Easy' | 'Medium' | 'Hard'>('All');
@@ -131,10 +132,13 @@ export function AdminDashboard({
   const [editorMode, setEditorMode] = useState<'form' | 'json'>('form');
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
 
   // Assignments State
   const [assignments, setAssignments] = useState<any[]>([]);
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [viewingResultsQuiz, setViewingResultsQuiz] = useState<any | null>(null);
+  const [quizResults, setQuizResults] = useState<any[]>([]);
   const [assignmentFormData, setAssignmentFormData] = useState({
     _id: '',
     title: '',
@@ -144,6 +148,8 @@ export function AdminDashboard({
     endTime: '',
     questions: [] as string[],
     assignedTo: [] as string[],
+    targetYear: 'All',
+    targetSection: 'All',
     isLockdown: false
   });
 
@@ -190,7 +196,6 @@ export function AdminDashboard({
         setStudents(studentsWithRank);
       }
       if (settingsRes.success) {
-        setIsOpenRegistration(settingsRes.data.isOpenRegistration);
         setIsPasteEnabled(settingsRes.data.isPasteEnabled);
       }
       if (quizzesRes.success) setAssignments(quizzesRes.data);
@@ -220,21 +225,7 @@ export function AdminDashboard({
     };
   }, []);
 
-  const toggleOpenRegistration = async () => {
-    try {
-        const newValue = !isOpenRegistration;
-        setIsOpenRegistration(newValue);
-        const result = await updateDualitySettings({ isOpenRegistration: newValue });
-        if (!result.success) {
-            setIsOpenRegistration(!newValue);
-            alert('Failed to update registration settings');
-        }
-    } catch (error) {
-        console.error('Error toggling registration:', error);
-        setIsOpenRegistration(!isOpenRegistration);
-        alert('Error updating setting');
-    }
-  };
+
 
   const togglePasteEnabled = async () => {
     try {
@@ -298,6 +289,29 @@ export function AdminDashboard({
     }
   };
 
+  const handleExcelUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsImporting(true);
+      const result = await importDualityStudents(file);
+      if (result.success) {
+        alert(result.message || 'Students imported successfully');
+        fetchData();
+      } else {
+        alert(result.message || 'Failed to import students');
+      }
+    } catch (err: any) {
+      console.error(err);
+      alert(err.response?.data?.message || 'Error uploading file');
+    } finally {
+      setIsImporting(false);
+      // Reset input
+      event.target.value = '';
+    }
+  };
+
   const handleDeleteAssignment = async (id: string) => {
     if (confirm('Are you sure you want to delete this assignment?')) {
       try {
@@ -334,6 +348,8 @@ export function AdminDashboard({
         endTime: formatToLocalISO(quiz.endTime),
         questions: quiz.questions?.map((q: any) => q._id || q) || [],
         assignedTo: quiz.assignedTo?.map((u: any) => u._id || u) || [],
+        targetYear: quiz.targetYear || 'All',
+        targetSection: quiz.targetSection || 'All',
         isLockdown: quiz.isLockdown || false
       });
     } else {
@@ -346,6 +362,8 @@ export function AdminDashboard({
         endTime: '',
         questions: [],
         assignedTo: [],
+        targetYear: 'All',
+        targetSection: 'All',
         isLockdown: false
       });
     }
@@ -365,6 +383,19 @@ export function AdminDashboard({
     } catch (error) {
       console.error('Error adding question:', error);
       alert('Failed to add question');
+    }
+  };
+
+  const handleViewResults = async (quiz: any) => {
+    try {
+      const res = await getQuizResults(quiz._id);
+      if (res.success) {
+        setViewingResultsQuiz(quiz);
+        setQuizResults(res.data);
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error fetching results');
     }
   };
 
@@ -849,6 +880,9 @@ export function AdminDashboard({
                     })()}
                   </div>
                   <div className="flex gap-2">
+                    <button onClick={() => handleViewResults(q)} className="p-2 text-green-400 hover:bg-green-400/10 rounded-lg" title="View Submissions">
+                      <Eye className="w-5 h-5" />
+                    </button>
                     <button onClick={() => { resetAssignmentForm(q); setShowAssignmentModal(true); }} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg">
                       <Edit2 className="w-5 h-5" />
                     </button>
@@ -926,8 +960,51 @@ export function AdminDashboard({
             </div>
 
             {/* Students List */}
-            <div className="mb-6">
-              <h2 className="text-xl font-bold text-white mb-6">All Students</h2>
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold text-white">All Students</h2>
+              
+              <div className="flex items-center gap-4">
+                <label className={`flex items-center gap-2 px-4 py-2 bg-zinc-800 text-gray-300 hover:text-white rounded-lg cursor-pointer transition-colors border border-zinc-700 ${isImporting ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                  {isImporting ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <Upload className="w-4 h-4" />
+                  )}
+                  <span className="text-sm font-medium">{isImporting ? 'Syncing...' : 'Sync from Excel'}</span>
+                  <input 
+                    type="file" 
+                    accept=".xlsx,.xls,.csv" 
+                    className="hidden" 
+                    onChange={handleExcelUpload}
+                    disabled={isImporting}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <div className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-6 mb-6">
+               <div className="flex items-start gap-4">
+                  <div className="w-10 h-10 rounded-full bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+                    <FileSpreadsheet className="w-5 h-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-white mb-1">Bulk Student Management</h4>
+                    <p className="text-xs text-gray-500 leading-relaxed mb-3">
+                      Upload an Excel file with columns <span className="text-gray-300 font-mono">Name, Email</span> to bulk-add or update students. Year will be automatically detected.
+                      Changes are instantly reflected and students are auto-targeted for assignments.
+                    </p>
+                    <div className="flex gap-4">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Supports .xlsx, .csv</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                        <span className="text-[10px] text-gray-400 uppercase font-bold tracking-widest">Auto-provisions accounts</span>
+                      </div>
+                    </div>
+                  </div>
+               </div>
             </div>
 
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
@@ -936,6 +1013,7 @@ export function AdminDashboard({
                   <thead className="bg-black border-b border-zinc-800">
                     <tr>
                       <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">Student</th>
+                      <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">Year/Section</th>
                       <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">Rank</th>
                       <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">Points</th>
                       <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">Total Solved</th>
@@ -952,6 +1030,11 @@ export function AdminDashboard({
                           <div>
                             <p className="text-white font-medium">{student.name}</p>
                             <p className="text-sm text-gray-500">{student.email}</p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex gap-2">
+                            <span className="text-xs font-bold text-zinc-300 bg-zinc-800 px-2 py-1 rounded">Y{student.year || '-'}</span>
                           </div>
                         </td>
                         <td className="px-6 py-4">
@@ -1007,31 +1090,7 @@ export function AdminDashboard({
               <p className="text-sm text-gray-400">Configure global behaviors and restrictions for the evaluation and assignments environment.</p>
             </div>
             
-            <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8">
-              {/* Registration Toggle Setting */}
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-12">
-                <div>
-                  <h3 className="text-lg font-bold text-white mb-2">Open Registration</h3>
-                  <p className="text-sm text-gray-500 leading-relaxed">
-                    When enabled, any user with a verified <span className="text-gray-300 font-semibold">@bmu.edu.in</span> email address can instantly log in and access the platform. 
-                    When disabled, the platform enters restricted mode—only users explicitly added to the Allowlist below can authenticate.
-                  </p>
-                </div>
-                <div className="flex-shrink-0 mt-2 md:mt-0">
-                 <button
-                    onClick={toggleOpenRegistration}
-                    className={`flex items-center gap-3 px-6 py-3 rounded-xl text-sm transition-all focus:outline-none whitespace-nowrap ${
-                      isOpenRegistration 
-                        ? 'bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)] ring-2 ring-white/50 ring-offset-2 ring-offset-zinc-900' 
-                        : 'bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 font-medium border border-zinc-700 hover:border-zinc-500'
-                    }`}
-                  >
-                    <Settings className={`w-4 h-4 ${isOpenRegistration ? 'animate-[spin_4s_linear_infinite]' : ''}`} />
-                    {isOpenRegistration ? 'Status: OPEN' : 'Status: LOCKED'}
-                 </button>
-                </div>
-              </div>
-            </div>
+
               
             <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-8">
               {/* Code Paste Setting */}
@@ -1654,22 +1713,33 @@ export function AdminDashboard({
                 </div>
               </div>
 
+              <div className="grid grid-cols-1 gap-4">
+                <div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Target Year</label>
+                  <select
+                    className="w-full bg-black border border-zinc-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-zinc-500 transition-colors"
+                    value={assignmentFormData.targetYear}
+                    onChange={e => setAssignmentFormData({ ...assignmentFormData, targetYear: e.target.value })}
+                  >
+                    <option value="All">All Years</option>
+                    <option value="1">1st Year</option>
+                    <option value="2">2nd Year</option>
+                    <option value="3">3rd Year</option>
+                    <option value="4">4th Year</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
                 <div className="flex justify-between items-center mb-2">
-                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">Assign to Students ({assignmentFormData.assignedTo.length} selected)</label>
-                  <button 
-                    onClick={() => setAssignmentFormData({ 
-                      ...assignmentFormData, 
-                      assignedTo: assignmentFormData.assignedTo.length === students.length ? [] : students.map(s => s.id) 
-                    })}
-                    className="text-[10px] font-bold text-blue-400 hover:text-blue-300 uppercase tracking-widest"
-                  >
-                    {assignmentFormData.assignedTo.length === students.length ? 'Deselect All' : 'Select All Clients'}
-                  </button>
+                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-widest">
+                    Manual Assignment Override ({assignmentFormData.assignedTo.length} students)
+                  </label>
+                  <span className="text-[10px] text-gray-500 uppercase italic">Only use for individual exceptions</span>
                 </div>
-                <div className="bg-black border border-zinc-800 rounded-xl h-48 overflow-y-auto p-4 space-y-2 custom-scrollbar">
+                <div className="bg-black border border-zinc-800 rounded-xl h-32 overflow-y-auto p-4 space-y-2 custom-scrollbar">
                   {students.map(s => (
-                    <label key={s.id} className={`flex items-center gap-3 p-3 rounded-lg border transition-all cursor-pointer ${assignmentFormData.assignedTo.includes(s.id) ? 'bg-white/5 border-white/20' : 'border-transparent hover:bg-white/5'}`}>
+                    <label key={s.id} className={`flex items-center gap-3 p-2 rounded-lg border transition-all cursor-pointer ${assignmentFormData.assignedTo.includes(s.id) ? 'bg-white/5 border-white/20' : 'border-transparent hover:bg-white/5'}`}>
                       <input
                         type="checkbox"
                         className="w-4 h-4 rounded border-zinc-700 bg-zinc-900 text-white focus:ring-0 focus:ring-offset-0"
@@ -1682,12 +1752,12 @@ export function AdminDashboard({
                         }}
                       />
                       <div className="flex-1">
-                        <p className="text-sm font-medium text-white">{s.name}</p>
-                        <p className="text-[10px] text-gray-400">{s.email}</p>
+                        <p className="text-[13px] font-medium text-white">{s.name}</p>
+                        <p className="text-[10px] text-gray-400">{s.email} • Y{s.year}</p>
                       </div>
                     </label>
                   ))}
-                  {students.length === 0 && <p className="text-center text-gray-500 py-4 text-sm">No students registered.</p>}
+                  {students.length === 0 && <p className="text-center text-gray-500 py-4 text-sm">No students found.</p>}
                 </div>
               </div>
 
@@ -1723,6 +1793,96 @@ export function AdminDashboard({
                   Cancel
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ────────────────── RESULTS MODAL ────────────────── */}
+      {viewingResultsQuiz && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl relative">
+            <button
+              onClick={() => { setViewingResultsQuiz(null); setQuizResults([]); }}
+              className="absolute top-6 right-6 p-2 text-gray-500 hover:text-white rounded-full transition-colors z-10 bg-black/50"
+            >
+              <Plus className="w-6 h-6 rotate-45" />
+            </button>
+
+            <div className="p-8 border-b border-zinc-800 bg-zinc-900/50">
+              <h2 className="text-2xl font-bold text-white mb-2 font-display">{viewingResultsQuiz.title} - Results</h2>
+              <p className="text-gray-400 text-sm">{quizResults.length} students have attempted this assignment</p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scrollbar">
+              {quizResults.length === 0 ? (
+                <div className="text-center text-gray-500 py-12">No submissions found.</div>
+              ) : (
+                <div className="grid gap-6">
+                  {quizResults.map((res: any, idx: number) => (
+                    <div key={idx} className="bg-black border border-zinc-800 rounded-2xl p-6 relative overflow-hidden group">
+                      <div className="absolute top-0 right-0 h-full w-1 bg-zinc-800 transition-colors" />
+                      
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-6">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full overflow-hidden border border-zinc-800 shrink-0">
+                            {res.student?.avatar ? (
+                              <img src={res.student.avatar} alt="Avatar" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
+                                <User className="w-6 h-6 text-gray-500" />
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <h3 className="text-lg font-bold text-white leading-tight">{res.student?.name || 'Unknown User'}</h3>
+                            <p className="text-sm text-gray-500 mt-0.5">{res.student?.email || 'No email'}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center gap-6">
+                          <div className="flex items-center gap-3">
+                            <span className={`px-3 py-1.5 rounded-lg text-xs font-bold tracking-widest uppercase ${res.isComplete ? 'bg-green-500/10 text-green-500' : 'bg-yellow-500/10 text-yellow-500'}`}>
+                              {res.isComplete ? 'Completed' : 'In Progress'}
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-yellow-400 to-yellow-600">
+                              {res.totalScore}
+                            </div>
+                            <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase">Points</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-3 pt-6 border-t border-zinc-800/50">
+                        {res.answers?.map((ans: any, i: number) => (
+                          <div key={i} className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900/50">
+                            <div>
+                                <h4 className="text-sm font-semibold text-white">{ans.question?.title || 'Unknown Question'}</h4>
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-zinc-800 text-zinc-400">{ans.question?.difficulty}</span>
+                                  {ans.language && (
+                                    <span className="text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider bg-blue-500/10 text-blue-400">{ans.language}</span>
+                                  )}
+                                  <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase tracking-wider ${
+                                    ans.status === 'accepted' ? 'bg-green-500/10 text-green-500' : 
+                                    ans.status === 'not_attempted' ? 'bg-zinc-800 text-gray-500' : 'bg-red-500/10 text-red-500'
+                                  }`}>
+                                    {ans.status === 'accepted' ? 'Solved' : ans.status === 'not_attempted' ? 'Not Attempted' : 'Attempted/Failed'}
+                                  </span>
+                                </div>
+                            </div>
+                            <div className="text-right">
+                                <span className={`text-lg font-bold ${ans.score > 0 ? 'text-green-400' : 'text-gray-500'}`}>+{ans.score || 0}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>

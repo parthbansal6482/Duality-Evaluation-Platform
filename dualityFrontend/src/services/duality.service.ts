@@ -100,6 +100,16 @@ export const runDualityCode = async (questionId: string, code: string, language:
     return res.data;
 };
 
+export const savePracticeDraft = async (questionId: string, code: string, language: string) => {
+    const res = await api.post('/duality/submissions/draft', { questionId, code, language });
+    return res.data;
+};
+
+export const getPracticeDraft = async (questionId: string) => {
+    const res = await api.get(`/duality/submissions/draft/${questionId}`);
+    return res.data;
+};
+
 export const getDualitySubmission = async (id: string) => {
     const res = await api.get(`/duality/submissions/${id}`);
     return res.data;
@@ -124,5 +134,16 @@ export const getDualityUsers = async () => {
 
 export const getAllDualitySubmissions = async () => {
     const res = await api.get('/duality/submissions/all');
+    return res.data;
+};
+
+export const importDualityStudents = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await api.post('/duality/import/students', formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
+    });
     return res.data;
 };

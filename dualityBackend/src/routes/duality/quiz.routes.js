@@ -12,17 +12,22 @@ const {
     submitQuizAnswer,
     getQuizResults,
     getMyQuizResult,
+    saveQuizDraft,
+    finalizeQuizSubmission
 } = require('../../controllers/duality/quiz.controller');
 
 // All quiz routes require authentication
 router.use(protect);
 
-// Quiz CRUD
-router.post('/', adminOnly, createQuiz);
-router.get('/', getQuizzes);
-router.get('/:id', getQuiz);
-router.patch('/:id', adminOnly, updateQuiz);
-router.delete('/:id', adminOnly, deleteQuiz);
+router.route('/')
+    .post(adminOnly, createQuiz)
+    .get(getQuizzes);
+
+router.route('/:id')
+    .get(getQuiz)
+    .put(adminOnly, updateQuiz)
+    .patch(adminOnly, updateQuiz)
+    .delete(adminOnly, deleteQuiz);
 
 // Quiz lifecycle
 router.patch('/:id/activate', adminOnly, activateQuiz);
@@ -30,6 +35,8 @@ router.patch('/:id/end', adminOnly, endQuiz);
 
 // Submissions
 router.post('/:id/submit', submitQuizAnswer);
+router.post('/:id/save-draft', saveQuizDraft);
+router.post('/:id/finalize', finalizeQuizSubmission);
 router.get('/:id/results', adminOnly, getQuizResults);
 router.get('/:id/my-result', getMyQuizResult);
 

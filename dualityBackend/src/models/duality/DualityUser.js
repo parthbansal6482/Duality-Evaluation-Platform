@@ -56,6 +56,14 @@ const dualityUserSchema = new mongoose.Schema({
         type: Date,
         default: Date.now,
     },
+    year: {
+        type: String,
+        default: null,
+    },
+    section: {
+        type: String,
+        default: null,
+    },
 }, {
     timestamps: true,
 });

@@ -1,9 +1,22 @@
 import { useState, useEffect } from 'react';
 import { ArrowLeft, Play, CheckCircle2, XCircle, Code2, FileText, Clock, RotateCcw } from 'lucide-react';
-import { getDualityQuestion, submitDualityCode, runDualityCode, getDualitySettings } from '../../services/duality.service';
+import { getDualityQuestion, submitDualityCode, runDualityCode, getDualitySettings, savePracticeDraft, getPracticeDraft } from '../../services/duality.service';
 import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { dualitySocket } from '../../services/dualitySocket.service';
+
+// Custom debounce effect hook
+function useDebounceEffect(fn: () => void, delay: number, deps: any[]) {
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fn();
+    }, delay);
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [...deps, delay]);
+}
 
 interface TestCase {
   input: string;
@@ -62,11 +75,13 @@ export function ProblemSolve({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [activeSubmissionId, setActiveSubmissionId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [settings, setSettings] = useState<{ isPasteEnabled?: boolean }>({ isPasteEnabled: true });
   const dualityUserId = getDualityUserId();
 
-  const getDraftOrBoilerplate = (lang: Language, currentProblem: Problem | null): string => {
+  const getDraftOrBoilerplate = (lang: Language, currentProblem: Problem | null, serverDraft?: string): string => {
     if (!currentProblem) return '';
+    if (serverDraft) return serverDraft;
     const key = getDraftStorageKey(dualityUserId, problemId, lang);
     const savedDraft = localStorage.getItem(key);
     if (savedDraft !== null) return savedDraft;
@@ -76,9 +91,10 @@ export function ProblemSolve({
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [problemResult, settingsResult] = await Promise.all([
+        const [problemResult, settingsResult, draftResult] = await Promise.all([
            getDualityQuestion(problemId),
-           getDualitySettings().catch(() => ({ success: false, data: {} }))
+           getDualitySettings().catch(() => ({ success: false, data: {} })),
+           getPracticeDraft(problemId).catch(() => ({ success: false, data: null }))
         ]);
         
         if (settingsResult.success) {
@@ -87,7 +103,11 @@ export function ProblemSolve({
 
         if (problemResult.success) {
           setProblem(problemResult.data);
-          setCode(getDraftOrBoilerplate(selectedLanguage, problemResult.data));
+          const serverDraft = draftResult.success && draftResult.data && draftResult.data.language === selectedLanguage 
+            ? draftResult.data.code 
+            : undefined;
+          
+          setCode(getDraftOrBoilerplate(selectedLanguage, problemResult.data, serverDraft));
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -121,7 +141,26 @@ export function ProblemSolve({
     return () => {
       dualitySocket.off('duality:submission:update', handleSubmissionUpdate);
     };
-  }, [problemId, activeSubmissionId]);
+  }, [problemId, activeSubmissionId, selectedLanguage]);
+
+  useEffect(() => {
+    if (settings.isPasteEnabled) return;
+
+    const blockEvent = (e: Event) => {
+      e.preventDefault();
+      return false;
+    };
+
+    document.addEventListener('contextmenu', blockEvent);
+    document.addEventListener('copy', blockEvent);
+    document.addEventListener('paste', blockEvent);
+
+    return () => {
+      document.removeEventListener('contextmenu', blockEvent);
+      document.removeEventListener('copy', blockEvent);
+      document.removeEventListener('paste', blockEvent);
+    };
+  }, [settings.isPasteEnabled]);
 
   const handleLanguageChange = (lang: Language) => {
     setSelectedLanguage(lang);
@@ -129,11 +168,27 @@ export function ProblemSolve({
     setTestResults(null);
   };
 
-  useEffect(() => {
-    if (!problem) return;
+  // Auto-save to server (debounced)
+  useDebounceEffect(() => {
+    if (!problem || !code || isLoading) return;
+    
+    const saveToServer = async () => {
+      try {
+        setIsSaving(true);
+        await savePracticeDraft(problemId, code, selectedLanguage);
+      } catch (err) {
+        console.error('Failed to auto-save draft to server:', err);
+      } finally {
+        setIsSaving(false);
+      }
+    };
+    
+    saveToServer();
+    
+    // Also keep localStorage as fallback
     const key = getDraftStorageKey(dualityUserId, problemId, selectedLanguage);
     localStorage.setItem(key, code);
-  }, [code, problem, problemId, selectedLanguage, dualityUserId]);
+  }, 5000, [code, selectedLanguage, problemId, isLoading]);
 
   const handleRunCode = async () => {
     setIsRunning(true);
@@ -251,63 +306,63 @@ export function ProblemSolve({
       <div className="flex-1 overflow-hidden">
         <PanelGroup direction="horizontal">
           {/* Left Panel - Problem Description */}
-          <Panel defaultSize={40} minSize={25} className="border-r border-zinc-800 overflow-y-auto bg-zinc-950/30">
-            <div className="p-6 space-y-6">
-            {/* Description */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Description
-              </h3>
-              <div className="text-gray-300 leading-relaxed whitespace-pre-line">
-                {problem.description}
-              </div>
-            </div>
-
-            {/* Examples */}
-            <div>
-              <h3 className="text-sm font-medium text-gray-400 mb-3">Examples</h3>
-              <div className="space-y-4">
-                {problem.examples.map((example, index) => (
-                  <div key={index} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
-                    <div className="text-xs font-medium text-gray-500 mb-2">Example {index + 1}</div>
-                    <div className="space-y-2 text-sm">
-                      <div>
-                        <span className="text-gray-500">Input: </span>
-                        <code className="text-white font-mono">{example.input}</code>
-                      </div>
-                      <div>
-                        <span className="text-gray-500">Output: </span>
-                        <code className="text-white font-mono">{example.output}</code>
-                      </div>
-                      {example.explanation && (
-                        <div>
-                          <span className="text-gray-500">Explanation: </span>
-                          <span className="text-gray-400">{example.explanation}</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Constraints */}
-            {problem.constraints && problem.constraints.length > 0 && (
+          <Panel defaultSize={40} minSize={25} className="border-r border-zinc-800 bg-zinc-950/30">
+            <div className="h-full overflow-y-auto p-6 space-y-6">
+              {/* Description */}
               <div>
-                <h3 className="text-sm font-medium text-gray-400 mb-3">Constraints</h3>
-                <ul className="space-y-2">
-                  {problem.constraints.map((constraint, index) => (
-                    <li key={index} className="text-sm text-gray-400 flex gap-2">
-                      <span className="text-gray-600">•</span>
-                      <code className="font-mono">{constraint}</code>
-                    </li>
-                  ))}
-                </ul>
+                <h3 className="text-sm font-medium text-gray-400 mb-3 flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Description
+                </h3>
+                <div className="text-gray-300 leading-relaxed whitespace-pre-line">
+                  {problem.description}
+                </div>
               </div>
-            )}
-          </div>
-        </Panel>
+
+              {/* Examples */}
+              <div>
+                <h3 className="text-sm font-medium text-gray-400 mb-3">Examples</h3>
+                <div className="space-y-4">
+                  {problem.examples.map((example, index) => (
+                    <div key={index} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Example {index + 1}</div>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="text-gray-500">Input: </span>
+                          <code className="text-white font-mono">{example.input}</code>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Output: </span>
+                          <code className="text-white font-mono">{example.output}</code>
+                        </div>
+                        {example.explanation && (
+                          <div>
+                            <span className="text-gray-500">Explanation: </span>
+                            <span className="text-gray-400">{example.explanation}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Constraints */}
+              {problem.constraints && problem.constraints.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium text-gray-400 mb-3">Constraints</h3>
+                  <ul className="space-y-2">
+                    {problem.constraints.map((constraint, index) => (
+                      <li key={index} className="text-sm text-gray-400 flex gap-2">
+                        <span className="text-gray-600">•</span>
+                        <code className="font-mono">{constraint}</code>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </Panel>
 
         <PanelResizeHandle className="w-1 bg-zinc-800 hover:bg-blue-500 transition-colors cursor-col-resize" />
 

@@ -1,5 +1,6 @@
 const { OAuth2Client } = require('google-auth-library');
 const jwt = require('jsonwebtoken');
+const xlsx = require('xlsx');
 const getDualityUser = require('../../models/duality/DualityUser');
 const getDualityAllowedEmail = require('../../models/duality/DualityAllowedEmail');
 
@@ -14,6 +15,15 @@ const getUserPoints = (user) =>
     (user.easySolved || 0) * POINTS_BY_DIFFICULTY.Easy
     + (user.mediumSolved || 0) * POINTS_BY_DIFFICULTY.Medium
     + (user.hardSolved || 0) * POINTS_BY_DIFFICULTY.Hard;
+
+const detectYearFromEmail = (email) => {
+    const lowerEmail = email.toLowerCase();
+    if (lowerEmail.includes('25')) return '1';
+    if (lowerEmail.includes('24')) return '2';
+    if (lowerEmail.includes('23')) return '3';
+    if (lowerEmail.includes('22')) return '4';
+    return null;
+};
 
 const sortByPointsAndActivity = (a, b) => {
     const pointsDiff = getUserPoints(b) - getUserPoints(a);
@@ -85,24 +95,7 @@ exports.googleLogin = async (req, res) => {
             });
         }
 
-        // 2. Check if email is in the allowlist OR open registration is enabled
-        const getDualitySettings = require('../../models/duality/DualitySettings');
-        const DualitySettings = getDualitySettings();
-        let settings = await DualitySettings.findOne();
-        if (!settings) settings = { isOpenRegistration: false };
 
-        if (!settings.isOpenRegistration) {
-            const DualityAllowedEmail = getDualityAllowedEmail();
-            const allowedEntry = await DualityAllowedEmail.findOne({ email: email.toLowerCase() });
-
-            if (!allowedEntry) {
-                console.warn(`[Auth] Blocked login attempt for non-allowlisted email: ${email}`);
-                return res.status(403).json({
-                    success: false,
-                    message: 'Your email is not authorized to access this platform. Please contact your administrator to be added to the allowlist.',
-                });
-            }
-        }
 
         // 3. Find or create the user
         const DualityUser = getDualityUser();
@@ -112,22 +105,50 @@ exports.googleLogin = async (req, res) => {
             // Check if a user with this email already exists (edge case)
             user = await DualityUser.findOne({ email: email.toLowerCase() });
 
+            // Pull cohort info from Master List (Excel Import)
+            const DualityAllowedEmail = getDualityAllowedEmail();
+            const masterEntry = await DualityAllowedEmail.findOne({ email: email.toLowerCase() });
+
             if (user) {
                 // Link Google ID to existing user
                 user.googleId = googleId;
                 user.avatar = picture || user.avatar;
+                if (masterEntry) {
+                    user.year = masterEntry.year || user.year;
+                    user.section = masterEntry.section || user.section;
+                }
+                // Auto-detect year from email
+                const detectedYear = detectYearFromEmail(email);
+                if (detectedYear) user.year = detectedYear;
+
                 await user.save();
             } else {
                 // Create new user
+                const detectedYear = detectYearFromEmail(email);
                 user = await DualityUser.create({
                     googleId,
                     name,
                     email: email.toLowerCase(),
                     avatar: picture || '',
                     role: 'student', // Default role
+                    year: detectedYear || (masterEntry ? masterEntry.year : null),
+                    section: masterEntry ? masterEntry.section : null,
                 });
             }
         } else {
+            // Update existing user with latest info from Master List
+            const DualityAllowedEmail = getDualityAllowedEmail();
+            const masterEntry = await DualityAllowedEmail.findOne({ email: email.toLowerCase() });
+            
+            if (masterEntry) {
+                user.year = masterEntry.year || user.year;
+                user.section = masterEntry.section || user.section;
+            }
+
+            // Auto-detect year from email
+            const detectedYear = detectYearFromEmail(email);
+            if (detectedYear) user.year = detectedYear;
+
             // Update avatar and last active
             user.avatar = picture || user.avatar;
             user.name = name || user.name;
@@ -296,6 +317,77 @@ exports.getLeaderboard = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error fetching leaderboard',
+            error: error.message,
+        });
+    }
+};
+
+/**
+ * Upload students list from Excel
+ * POST /api/duality/auth/import-students
+ * Admin only
+ */
+exports.uploadStudents = async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, message: 'Please upload an Excel file' });
+        }
+
+        const workbook = xlsx.read(req.file.buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = xlsx.utils.sheet_to_json(worksheet);
+
+        if (data.length === 0) {
+            return res.status(400).json({ success: false, message: 'Excel file is empty' });
+        }
+
+        const DualityAllowedEmail = getDualityAllowedEmail();
+        const DualityUser = getDualityUser();
+        
+        let importedCount = 0;
+        let updatedUserCount = 0;
+
+        for (const row of data) {
+            // Flexible header detection
+            const email = (row.Email || row.email || row['Email ID'] || '').toString().toLowerCase().trim();
+            const name = (row.Name || row.name || '').toString().trim();
+            const year = detectYearFromEmail(email);
+            const section = null; // Section completely deprecated
+
+            if (!email || !email.endsWith('@bmu.edu.in')) continue;
+
+            // 1. Upsert into Master List (DualityAllowedEmail)
+            await DualityAllowedEmail.findOneAndUpdate(
+                { email },
+                { email, name, year, section, addedBy: req.dualityUser._id },
+                { upsert: true, new: true }
+            );
+            importedCount++;
+
+            // 2. Proactively update existing user if they already exist
+            const existingUser = await DualityUser.findOneAndUpdate(
+                { email },
+                { year, section },
+                { new: true }
+            );
+            if (existingUser) updatedUserCount++;
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Successfully processed ${importedCount} students.`,
+            data: {
+                totalRows: data.length,
+                imported: importedCount,
+                syncedUsers: updatedUserCount
+            }
+        });
+    } catch (error) {
+        console.error('uploadStudents error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error processing Excel file',
             error: error.message,
         });
     }

@@ -15,6 +15,18 @@ const allowedEmailSchema = new mongoose.Schema({
             message: 'Only @bmu.edu.in emails are allowed',
         },
     },
+    name: {
+        type: String,
+        trim: true,
+    },
+    year: {
+        type: String,
+        trim: true,
+    },
+    section: {
+        type: String,
+        trim: true,
+    },
     addedBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'DualityUser',

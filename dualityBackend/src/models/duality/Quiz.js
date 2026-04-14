@@ -29,6 +29,14 @@ const quizSchema = new mongoose.Schema(
         ref: 'DualityUser',
       },
     ],
+    targetYear: {
+      type: String,
+      default: 'All',
+    },
+    targetSection: {
+      type: String,
+      default: 'All',
+    },
     durationMinutes: {
       type: Number,
       min: [1, 'Duration must be at least 1 minute'],

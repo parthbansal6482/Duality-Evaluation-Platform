@@ -66,6 +66,19 @@ export const submitQuizAnswer = async (
   return res.data;
 };
 
+export const saveQuizDraft = async (
+  quizId: string,
+  payload: { questionId: string; code: string; language: string }
+) => {
+  const res = await api.post(`/duality/quiz/${quizId}/save-draft`, payload);
+  return res.data;
+};
+
+export const finalizeQuizSubmission = async (quizId: string) => {
+  const res = await api.post(`/duality/quiz/${quizId}/finalize`, {});
+  return res.data;
+};
+
 export const getQuizResults = async (quizId: string) => {
   const res = await api.get(`/duality/quiz/${quizId}/results`);
   return res.data;
