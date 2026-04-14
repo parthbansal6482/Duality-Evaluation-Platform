@@ -4,7 +4,7 @@ const { protect, adminOnly } = require('../../middleware/dualityAuth');
 
 const router = express.Router();
 
-router.get('/', protect, adminOnly, getSettings);
+router.get('/', protect, getSettings);
 router.put('/', protect, adminOnly, updateSettings);
 
 module.exports = router;

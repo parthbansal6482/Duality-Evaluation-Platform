@@ -3,7 +3,7 @@ import { ArrowLeft, Play, CheckCircle2, XCircle, Code2, FileText, Clock, RotateC
 import { getDualityQuestion, submitDualityCode, runDualityCode, getDualitySettings } from '../../services/duality.service';
 import { MonacoCodeEditor } from '../ui/MonacoCodeEditor';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
-import { dualitySocket } from '../../services/socket.service';
+import { dualitySocket } from '../../services/dualitySocket.service';
 
 interface TestCase {
   input: string;

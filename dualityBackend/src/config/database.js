@@ -1,9 +1,9 @@
 const mongoose = require('mongoose');
 
-let dbConnection = null;
-
 /**
  * Initialize connection to MongoDB
+ * Competition models (Team, Round, etc.) use the default mongoose connection provided by mongoose.connect()
+ * Duality models use the specific connection instance via getDBConnection()
  */
 const connectDB = async () => {
     try {
@@ -11,11 +11,11 @@ const connectDB = async () => {
             throw new Error('MONGODB_URI is not set');
         }
 
-        dbConnection = mongoose.createConnection(process.env.MONGODB_URI);
-        await dbConnection.asPromise();
+        // mongoose.connect sets the global/default connection used by mongoose.model()
+        const conn = await mongoose.connect(process.env.MONGODB_URI);
 
-        console.log(`Duality MongoDB Connected: ${dbConnection.host}`);
-        return dbConnection;
+        console.log(`Duality/Extended MongoDB Connected: ${conn.connection.host}`);
+        return conn.connection;
     } catch (error) {
         console.error(`Database Connection Error: ${error.message}`);
         process.exit(1);
@@ -24,12 +24,13 @@ const connectDB = async () => {
 
 /**
  * Get the active database connection
+ * Returns the default connection which Duality models expect
  */
 const getDBConnection = () => {
-    if (!dbConnection) {
+    if (!mongoose.connection || mongoose.connection.readyState === 0) {
         throw new Error('Database not connected. Call connectDB() first.');
     }
-    return dbConnection;
+    return mongoose.connection;
 };
 
 module.exports = { connectDB, getDBConnection };

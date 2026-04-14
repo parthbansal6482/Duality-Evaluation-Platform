@@ -1,11 +1,12 @@
 const jwt = require('jsonwebtoken');
-const getDualityUser = require('../models/duality/DualityUser');
 
-// Protect routes - verify JWT token
+// =============================================
+// Extended Competition Auth (Admin / Team)
+// =============================================
+
 exports.protect = async (req, res, next) => {
     let token;
 
-    // Check for token in headers
     if (
         req.headers.authorization &&
         req.headers.authorization.startsWith('Bearer')
@@ -13,7 +14,6 @@ exports.protect = async (req, res, next) => {
         token = req.headers.authorization.split(' ')[1];
     }
 
-    // Make sure token exists
     if (!token) {
         return res.status(401).json({
             success: false,
@@ -22,22 +22,34 @@ exports.protect = async (req, res, next) => {
     }
 
     try {
-        // Verify token
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Attach user to request based on type
-        const DualityUser = getDualityUser();
-        const user = await DualityUser.findById(decoded.id);
-
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: 'User not found',
-            });
+        if (decoded.type === 'admin') {
+            const Admin = require('../models/Admin');
+            req.admin = await Admin.findById(decoded.id).select('-password');
+            req.userType = 'admin';
+        } else if (decoded.type === 'team') {
+            const Team = require('../models/Team');
+            const team = await Team.findById(decoded.id).select('-password');
+            if (!team) {
+                return res.status(401).json({
+                    success: false,
+                    message: 'Team not found',
+                });
+            }
+            req.team = team;
+            req.userType = 'team';
+        } else if (decoded.type === 'duality') {
+            // Also support duality user tokens flowing through this middleware
+            const getDualityUser = require('../models/duality/DualityUser');
+            const DualityUser = getDualityUser();
+            const user = await DualityUser.findById(decoded.id);
+            if (!user) {
+                return res.status(401).json({ success: false, message: 'User not found' });
+            }
+            req.dualityUser = user;
+            req.userType = user.role;
         }
-
-        req.dualityUser = user;
-        req.userType = user.role;
 
         next();
     } catch (error) {

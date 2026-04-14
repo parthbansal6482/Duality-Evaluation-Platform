@@ -53,6 +53,20 @@ class DualitySocketService {
         };
     }
 
+    /**
+     * Generic event listener
+     */
+    on(eventName: string, callback: (...args: any[]) => void) {
+        this.socket?.on(eventName, callback);
+    }
+
+    /**
+     * Remove generic event listener
+     */
+    off(eventName: string, callback: (...args: any[]) => void) {
+        this.socket?.off(eventName, callback);
+    }
+
     disconnect() {
         this.socket?.disconnect();
         this.socket = null;

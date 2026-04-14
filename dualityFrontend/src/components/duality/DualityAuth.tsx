@@ -1,8 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState } from 'react';
 import { Chrome, ArrowLeft } from 'lucide-react';
 import { dualityGoogleLogin } from '../../services/duality.service';
-
-let gsiInitialized = false;
+import { useGoogleLogin } from '../../hooks/useGoogleLogin';
 
 declare global {
   interface Window {
@@ -34,7 +33,7 @@ declare global {
   }
 }
 
-const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
+
 
 export function DualityAuth({
   onLogin,
@@ -45,92 +44,29 @@ export function DualityAuth({
 }) {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const googleButtonRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!GOOGLE_CLIENT_ID) {
-      setError('Google Sign-In is not configured. Missing VITE_GOOGLE_CLIENT_ID.');
-      return;
-    }
-
-    // Wait for Google Identity Services script to load
-    const initializeGoogle = () => {
-      if (gsiInitialized) return;
-
-      if (window.google?.accounts?.id && googleButtonRef.current) {
-        gsiInitialized = true;
-
-        // Avoid duplicate GSI button instances when component remounts (e.g. React dev behavior)
-        googleButtonRef.current.innerHTML = '';
-
-        // 🔥 Prevent returning user auto sign-in
-        window.google.accounts.id.disableAutoSelect();
-
-        window.google.accounts.id.initialize({
-          client_id: GOOGLE_CLIENT_ID,
-          callback: handleGoogleResponse,
-          auto_select: false,
-          ux_mode: "popup", // Ensures popup mode
-        });
-
-        window.google.accounts.id.renderButton(
-          googleButtonRef.current,
-          {
-            type: "standard",
-            theme: "filled_black",
-            size: "large",
-            text: "continue_with",
-            shape: "rectangular",
-            width: 350,
-          }
-        );
-
-      }
-    };
-
-    // Check if script is already loaded
-    if (window.google?.accounts?.id) {
-      initializeGoogle();
-    } else {
-      // Wait for the script to load
-      const checkInterval = setInterval(() => {
-        if (window.google?.accounts?.id) {
-          clearInterval(checkInterval);
-          initializeGoogle();
+  const { googleButtonRef, isLoading: isGoogleLoading } = useGoogleLogin({
+    onSuccess: async (credential) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const result = await dualityGoogleLogin(credential);
+        if (result.success) {
+          localStorage.setItem('dualityToken', result.data.token);
+          localStorage.setItem('dualityUser', JSON.stringify(result.data.user));
+          onLogin(result.data.user.role, result.data.user.name);
+        } else {
+          setError(result.message || 'Login failed');
         }
-      }, 100);
-
-      return () => clearInterval(checkInterval);
-    }
-  }, []);
-
-  const handleGoogleResponse = async (response: { credential: string }) => {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      const result = await dualityGoogleLogin(response.credential);
-      console.log('Duality Auth Result:', result);
-
-      if (result.success) {
-        // Store the duality token separately from the extended token
-        localStorage.setItem('dualityToken', result.data.token);
-        localStorage.setItem('dualityUser', JSON.stringify(result.data.user));
-
-        console.log('Logged in as:', result.data.user.email);
-
-        onLogin(result.data.user.role, result.data.user.name);
-      } else {
-        setError(result.message || 'Login failed');
+      } catch (err: unknown) {
+        const error = err as { response?: { data?: { message?: string } } };
+        setError(error.response?.data?.message || 'Authentication failed');
+      } finally {
+        setIsLoading(false);
       }
-    } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } };
-      const message = error.response?.data?.message || 'Authentication failed. Please try again.';
-      setError(message);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    },
+    onError: (message) => setError(message),
+  });
 
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">

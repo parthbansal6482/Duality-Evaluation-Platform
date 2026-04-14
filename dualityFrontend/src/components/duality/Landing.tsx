@@ -1,15 +1,17 @@
-import { GraduationCap, ClipboardList } from 'lucide-react';
+import { GraduationCap, ClipboardList, Swords } from 'lucide-react';
 
 export function Landing({
   onSelectDuality,
-  onSelectDualityExtended
+  onSelectDualityExtended,
+  onSelectExtended,
 }: {
   onSelectDuality: () => void;
   onSelectDualityExtended: () => void;
+  onSelectExtended: () => void;
 }) {
   return (
     <div className="min-h-screen bg-black flex items-center justify-center p-4">
-      <div className="w-full max-w-4xl">
+      <div className="w-full max-w-5xl">
         {/* Main Header */}
         <div className="text-center mb-12">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 mb-6">
@@ -21,8 +23,8 @@ export function Landing({
           <p className="text-gray-500 text-lg">College Evaluation Platform</p>
         </div>
 
-        {/* Two Options */}
-        <div className="grid md:grid-cols-2 gap-6">
+        {/* Three Options */}
+        <div className="grid md:grid-cols-3 gap-6">
           {/* Assignments Mode */}
           <button
             id="select-assignments-btn"
@@ -104,6 +106,49 @@ export function Landing({
               <div className="pt-4 w-full">
                 <div className="bg-white text-black px-6 py-3 rounded-lg font-medium group-hover:bg-gray-200 transition-colors">
                   Enter Quizzes
+                </div>
+              </div>
+            </div>
+          </button>
+
+          {/* Extended Competition Mode */}
+          <button
+            id="select-extended-btn"
+            onClick={onSelectExtended}
+            className="group bg-zinc-900 border border-zinc-800 rounded-2xl p-8 hover:border-red-900/30 transition-all hover:bg-zinc-800/50 text-left"
+          >
+            <div className="flex flex-col items-center text-center space-y-6">
+              <div className="w-20 h-20 rounded-full bg-zinc-800 border border-red-900/50 flex items-center justify-center group-hover:border-red-700/70 transition-colors">
+                <Swords className="w-10 h-10 text-red-400" />
+              </div>
+
+              <div>
+                <h2 className="text-2xl font-bold text-white mb-3">
+                  Duality Extended
+                </h2>
+                <p className="text-gray-400 leading-relaxed">
+                  Live team-based competition with real-time leaderboards, sabotage mechanics, and multi-round battles.
+                </p>
+              </div>
+
+              <div className="pt-4 space-y-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-800"></div>
+                  <span>Real-Time Team Battles</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-800"></div>
+                  <span>Sabotage &amp; Shield Tactics</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-1.5 rounded-full bg-red-800"></div>
+                  <span>Live Leaderboard</span>
+                </div>
+              </div>
+
+              <div className="pt-4 w-full">
+                <div className="bg-red-950 text-red-200 border border-red-900 px-6 py-3 rounded-lg font-medium group-hover:bg-red-900/50 transition-colors">
+                  Enter Competition
                 </div>
               </div>
             </div>
