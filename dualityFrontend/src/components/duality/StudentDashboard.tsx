@@ -312,37 +312,61 @@ export function StudentDashboard({
               <h2 className="text-2xl font-bold text-white">Genuine Assignments</h2>
             </div>
             <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {assignments.map(quiz => (
-                <div key={quiz._id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all flex flex-col group">
-                   <div className="flex justify-between items-start mb-4">
-                      <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
-                        <ClipboardList className="w-6 h-6 text-white" />
+               {assignments.map(quiz => {
+                 const now = new Date();
+                 const startTime = quiz.startTime ? new Date(quiz.startTime) : null;
+                 const endTime = quiz.endTime ? new Date(quiz.endTime) : null;
+                 const isUpcoming = !!(startTime && now < startTime);
+                 const isEnded = !!(endTime && now > endTime);
+                 const isLocked = quiz.status !== 'active' || isUpcoming || isEnded;
+
+                 return (
+                  <div key={quiz._id} className="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 hover:border-zinc-700 transition-all flex flex-col group">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="w-12 h-12 rounded-xl bg-white/5 flex items-center justify-center group-hover:bg-white/10 transition-colors">
+                          <ClipboardList className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest ${isLocked ? 'bg-zinc-800 text-gray-500' : 'bg-green-500/10 text-green-500'}`}>
+                            {isUpcoming ? 'UPCOMING' : isEnded ? 'ENDED' : quiz.status.toUpperCase()}
+                          </span>
+                          {quiz.createdBy?.name && (
+                            <span className="text-[10px] text-gray-400 font-medium italic">by {quiz.createdBy.name}</span>
+                          )}
+                        </div>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-2">{quiz.title}</h3>
+                    <p className="text-gray-400 text-sm mb-6 flex-grow line-clamp-2">{quiz.description || 'No description provided.'}</p>
+                    
+                    <div className="space-y-4 mb-6 border-t border-zinc-800 pt-4">
+                      <div className="flex flex-col gap-1.5 text-[10px] text-gray-500 font-bold uppercase tracking-widest">
+                        <div className="flex items-center gap-2">
+                          <Clock className="w-3.5 h-3.5 text-blue-400" />
+                          <span>Window:</span>
+                        </div>
+                        <div className="pl-5 text-gray-400 normal-case font-medium">
+                          {startTime ? startTime.toLocaleString() : 'N/A'} — {endTime ? endTime.toLocaleString() : 'N/A'}
+                        </div>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-bold tracking-widest ${quiz.status === 'active' ? 'bg-green-500/10 text-green-500' : 'bg-zinc-800 text-gray-500'}`}>
-                        {quiz.status.toUpperCase()}
-                      </span>
-                   </div>
-                   <h3 className="text-xl font-bold text-white mb-2">{quiz.title}</h3>
-                   <p className="text-gray-400 text-sm mb-6 flex-grow line-clamp-2">{quiz.description || 'No description provided.'}</p>
-                   <div className="flex items-center gap-4 mb-6 text-xs text-gray-500 border-t border-zinc-800 pt-4">
-                      <div className="flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5" />
-                        {quiz.durationMinutes} Mins
+                      <div className="flex items-center gap-4 text-xs text-gray-500">
+                        <div className="flex items-center gap-1.5">
+                          <Target className="w-3.5 h-3.5" />
+                          {quiz.questions?.length || 0} Problems
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <Target className="w-3.5 h-3.5" />
-                        {quiz.questions?.length || 0} Problems
-                      </div>
-                   </div>
-                   <button 
-                     onClick={() => setActiveQuizId(quiz._id)} 
-                     disabled={quiz.status !== 'active'}
-                     className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all uppercase tracking-widest text-xs ${quiz.status === 'active' ? 'bg-white text-black hover:bg-gray-200' : 'bg-zinc-800 text-gray-600 cursor-not-allowed'}`}
-                   >
-                     <Play className="w-4 h-4 fill-current" /> {quiz.status === 'active' ? 'Start Assignment' : 'Inactive'}
-                   </button>
-                </div>
-              ))}
+                    </div>
+
+                    <button 
+                      onClick={() => setActiveQuizId(quiz._id)} 
+                      disabled={isLocked}
+                      className={`w-full py-4 rounded-xl font-bold flex justify-center items-center gap-2 transition-all uppercase tracking-widest text-xs ${!isLocked ? 'bg-white text-black hover:bg-gray-200' : 'bg-zinc-800 text-gray-600 cursor-not-allowed'}`}
+                    >
+                      <Play className="w-4 h-4 fill-current" /> 
+                      {isUpcoming ? 'Starting Soon' : isEnded ? 'Ended' : quiz.status === 'active' ? 'Start Assignment' : 'Inactive'}
+                    </button>
+                  </div>
+                 );
+               })}
               {assignments.length === 0 && (
                 <div className="col-span-full py-20 bg-zinc-900 border border-zinc-800 rounded-3xl text-center">
                    <ClipboardList className="w-16 h-16 mx-auto mb-4 text-gray-700 opacity-50" />

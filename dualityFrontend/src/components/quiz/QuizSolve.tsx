@@ -28,6 +28,8 @@ export function QuizSolve({
   const [loading, setLoading] = useState(true);
   const [isRunning, setIsRunning] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [isExpired, setIsExpired] = useState(false);
   const [testResults, setTestResults] = useState<TestCaseResult[] | null>(null);
   const [settings, setSettings] = useState<{ isPasteEnabled?: boolean }>({ isPasteEnabled: true });
   
@@ -35,6 +37,41 @@ export function QuizSolve({
     fetchQuiz();
     getDualitySettings().then(res => { if(res.success) setSettings(res.data) }).catch(console.error);
   }, []);
+
+  // Timer logic
+  useEffect(() => {
+    if (!quiz?.endTime) return;
+
+    const calculateTimeLeft = () => {
+      const now = new Date().getTime();
+      const end = new Date(quiz.endTime).getTime();
+      const difference = end - now;
+
+      if (difference <= 0) {
+        setTimeLeft(0);
+        setIsExpired(true);
+        return false;
+      }
+
+      setTimeLeft(Math.floor(difference / 1000));
+      return true;
+    };
+
+    calculateTimeLeft();
+    const interval = setInterval(() => {
+      const alive = calculateTimeLeft();
+      if (!alive) clearInterval(interval);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [quiz]);
+
+  const formatTime = (seconds: number) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+  };
 
   const fetchQuiz = async () => {
     try {
@@ -147,9 +184,16 @@ export function QuizSolve({
                 <div className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Assignment Mode</div>
                </div>
            </div>
-           <div className="text-white flex gap-2 items-center text-sm bg-zinc-800 px-4 py-1.5 rounded-full border border-zinc-700">
-            <Clock className="w-4 h-4 text-blue-400"/> 
-            Question {currentQIdx + 1} of {quiz.questions.length}
+           <div className="text-white flex gap-4 items-center">
+            {timeLeft !== null && (
+              <div className={`flex items-center gap-2 px-4 py-1.5 rounded-full border text-sm font-bold ${isExpired ? 'bg-red-500/10 border-red-500/50 text-red-500' : 'bg-blue-500/10 border-blue-500/50 text-blue-400'}`}>
+                <Clock className="w-4 h-4"/>
+                {isExpired ? 'DEADLINE EXPIRED' : formatTime(timeLeft)}
+              </div>
+            )}
+            <div className="flex gap-2 items-center text-sm bg-zinc-800 px-4 py-1.5 rounded-full border border-zinc-700">
+             Question {currentQIdx + 1} of {quiz.questions.length}
+            </div>
            </div>
        </header>
 
@@ -194,7 +238,7 @@ export function QuizSolve({
                    <div className="flex gap-2">
                     <button 
                       onClick={handleRunCode} 
-                      disabled={isRunning || isSubmitting} 
+                      disabled={isRunning || isSubmitting || isExpired} 
                       className="bg-zinc-800 text-gray-300 px-4 py-1.5 rounded text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 flex items-center gap-2"
                     >
                       {isRunning ? <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin"/> : <Play className="w-4 h-4"/>}
@@ -202,7 +246,7 @@ export function QuizSolve({
                     </button>
                     <button 
                       onClick={handleSubmit} 
-                      disabled={isRunning || isSubmitting} 
+                      disabled={isRunning || isSubmitting || isExpired} 
                       className="bg-blue-600 text-white px-6 py-1.5 rounded text-sm font-bold hover:bg-blue-500 disabled:opacity-50"
                     >
                       {isSubmitting ? 'Submitting...' : 'Submit Answer'}

@@ -31,8 +31,8 @@ const quizSchema = new mongoose.Schema(
     ],
     durationMinutes: {
       type: Number,
-      required: [true, 'Duration is required'],
       min: [1, 'Duration must be at least 1 minute'],
+      default: 60
     },
     startTime: {
       type: Date,

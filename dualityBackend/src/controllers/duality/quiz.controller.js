@@ -11,8 +11,11 @@ exports.createQuiz = async (req, res) => {
     try {
         const Quiz = getQuiz();
         const { title, description, durationMinutes, startTime, endTime, questions, assignedTo } = req.body;
-        if (!title || !durationMinutes) {
-            return res.status(400).json({ success: false, message: 'title and durationMinutes are required' });
+        if (!title) {
+            return res.status(400).json({ success: false, message: 'title is required' });
+        }
+        if (startTime && endTime && new Date(startTime) >= new Date(endTime)) {
+            return res.status(400).json({ success: false, message: 'End time must be after start time' });
         }
         const quiz = await Quiz.create({
             title,
@@ -23,7 +26,7 @@ exports.createQuiz = async (req, res) => {
             questions: questions || [],
             assignedTo: assignedTo || [],
             createdBy: req.dualityUser._id,
-            status: 'draft',
+            status: 'active',
         });
         res.status(201).json({ success: true, data: quiz });
     } catch (error) {
@@ -38,11 +41,22 @@ exports.getQuizzes = async (req, res) => {
         const Quiz = getQuiz();
         const isAdmin = req.dualityUser.role === 'admin';
 
-        // Students only see active quizzes assigned specifically to them
-        const filter = isAdmin ? {} : { status: 'active', assignedTo: req.dualityUser._id };
+        // Students only see quizzes assigned to them that are currently within the scheduled window
+        const now = new Date();
+        const filter = isAdmin ? {} : { 
+            assignedTo: req.dualityUser._id,
+            $or: [
+                { status: 'active' }, // Support legacy active quizzes
+                {
+                    startTime: { $lte: now },
+                    endTime: { $gte: now }
+                }
+            ]
+        };
         const quizzes = await Quiz.find(filter)
             .populate('questions', 'title difficulty category')
             .populate('assignedTo', 'name email')
+            .populate('createdBy', 'name')
             .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, data: quizzes });
@@ -57,17 +71,25 @@ exports.getQuiz = async (req, res) => {
     try {
         const Quiz = getQuiz();
         const quiz = await Quiz.findById(req.params.id)
-            .populate('questions', 'title difficulty category description constraints examples boilerplate driverCode');
+            .populate('questions', 'title difficulty category description constraints examples boilerplate driverCode')
+            .populate('createdBy', 'name');
 
         if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
 
-        // Students can only access active quizzes assigned to them
+        // Students can only access active quizzes assigned to them within the time window
         if (req.dualityUser.role !== 'admin') {
+            const now = new Date();
             if (quiz.status !== 'active') {
                 return res.status(403).json({ success: false, message: 'This quiz is not currently active' });
             }
             if (!quiz.assignedTo || !quiz.assignedTo.some(userId => userId.toString() === req.dualityUser._id.toString())) {
                 return res.status(403).json({ success: false, message: 'You are not assigned to this quiz' });
+            }
+            if (quiz.startTime && now < new Date(quiz.startTime)) {
+                return res.status(403).json({ success: false, message: 'This assignment has not started yet' });
+            }
+            if (quiz.endTime && now > new Date(quiz.endTime)) {
+                return res.status(403).json({ success: false, message: 'This assignment has already ended' });
             }
         }
 
@@ -165,11 +187,19 @@ exports.submitQuizAnswer = async (req, res) => {
             return res.status(400).json({ success: false, message: 'questionId, code, and language are required' });
         }
 
-        // Validate quiz is active
+        // Validate quiz is active and within time window
         const quiz = await Quiz.findById(quizId);
         if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
+        
+        const now = new Date();
         if (quiz.status !== 'active') {
             return res.status(400).json({ success: false, message: 'This quiz is not active' });
+        }
+        if (quiz.startTime && now < new Date(quiz.startTime)) {
+            return res.status(400).json({ success: false, message: 'This assignment hasn\'t started yet' });
+        }
+        if (quiz.endTime && now > new Date(quiz.endTime)) {
+            return res.status(400).json({ success: false, message: 'This assignment has ended. Submissions are closed.' });
         }
 
         // Validate question belongs to quiz

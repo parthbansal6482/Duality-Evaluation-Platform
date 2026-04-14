@@ -10,9 +10,9 @@ exports.getAllQuestions = async (req, res) => {
 
         let query = DualityQuestion.find();
 
-        // Only include testCases for admins
+        // For non-admins, filter by isPractice and hide test cases
         if (req.dualityUser?.role !== 'admin') {
-            query = query.select('-testCases');
+            query = query.where({ isPractice: true }).select('-testCases');
         }
 
         const questions = await query.sort({ createdAt: -1 });
@@ -69,6 +69,7 @@ exports.createQuestion = async (req, res) => {
             examples,
             testCases,
             boilerplate: boilerplate || {},
+            isPractice: req.body.isPractice !== undefined ? req.body.isPractice : true,
             createdBy: req.dualityUser._id,
         });
 

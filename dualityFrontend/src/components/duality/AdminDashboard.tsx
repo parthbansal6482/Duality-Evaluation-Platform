@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList } from 'lucide-react';
+import { Code2, Plus, Edit2, Trash2, User, LogOut, Settings, BookOpen, Users, Trophy, TrendingUp, Eye, Play, Square, ClipboardList, Clock } from 'lucide-react';
 import { getQuizzes, createQuiz, updateQuiz, deleteQuiz, activateQuiz, endQuiz } from '../../services/quiz.service';
+import { DateTimePicker } from '../ui/DateTimePicker';
 
 interface TestCase {
   input: string;
@@ -42,6 +43,7 @@ interface Question {
   testCases: TestCase[];
   boilerplate: BoilerplateCode;
   driverCode?: BoilerplateCode;
+  isPractice?: boolean;
 }
 
 interface Student {
@@ -138,6 +140,8 @@ export function AdminDashboard({
     title: '',
     description: '',
     durationMinutes: 60,
+    startTime: '',
+    endTime: '',
     questions: [] as string[],
     assignedTo: [] as string[]
   });
@@ -161,7 +165,8 @@ export function AdminDashboard({
       c: '',
       cpp: '',
       java: ''
-    }
+    },
+    isPractice: true
   });
 
   const fetchData = async () => {
@@ -303,15 +308,7 @@ export function AdminDashboard({
     }
   };
 
-  const handleToggleAssignmentStatus = async (quiz: any) => {
-    try {
-      if (quiz.status === 'draft') await activateQuiz(quiz._id);
-      else if (quiz.status === 'active') await endQuiz(quiz._id);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+
 
   const resetAssignmentForm = (quiz?: any) => {
     if (quiz) {
@@ -319,7 +316,9 @@ export function AdminDashboard({
         _id: quiz._id,
         title: quiz.title,
         description: quiz.description || '',
-        durationMinutes: quiz.durationMinutes,
+        durationMinutes: quiz.durationMinutes || 60,
+        startTime: quiz.startTime ? new Date(quiz.startTime).toISOString().slice(0, 16) : '',
+        endTime: quiz.endTime ? new Date(quiz.endTime).toISOString().slice(0, 16) : '',
         questions: quiz.questions?.map((q: any) => q._id || q) || [],
         assignedTo: quiz.assignedTo?.map((u: any) => u._id || u) || []
       });
@@ -329,6 +328,8 @@ export function AdminDashboard({
         title: '',
         description: '',
         durationMinutes: 60,
+        startTime: '',
+        endTime: '',
         questions: [],
         assignedTo: []
       });
@@ -397,6 +398,7 @@ export function AdminDashboard({
       testCases: question.testCases,
       boilerplate: question.boilerplate,
       driverCode: question.driverCode || { python: '', c: '', cpp: '', java: '' },
+      isPractice: question.isPractice ?? true,
     };
     setFormData(data);
     setJsonInput(JSON.stringify(data, null, 2));
@@ -424,7 +426,8 @@ export function AdminDashboard({
         c: '',
         cpp: '',
         java: ''
-      }
+      },
+      isPractice: true
     });
   };
 
@@ -812,17 +815,25 @@ export function AdminDashboard({
                 <div key={q._id} className="bg-zinc-900 border border-zinc-800 p-6 rounded-xl flex justify-between items-center">
                   <div>
                     <h3 className="text-xl font-semibold text-white">{q.title}</h3>
-                    <p className="text-gray-400 text-sm mt-1">
-                      {q.durationMinutes} mins • {q.questions?.length || 0} questions • Assigned to {q.assignedTo?.length || 0} students
+                    <p className="text-gray-400 text-xs mt-1 flex flex-col gap-1">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3 h-3 text-blue-400"/>
+                        {q.startTime ? new Date(q.startTime).toLocaleString() : 'No start time'} — {q.endTime ? new Date(q.endTime).toLocaleString() : 'No deadline'}
+                      </span>
+                      <span className="block opacity-60">
+                        {q.questions?.length || 0} questions • Assigned to {q.assignedTo?.length || 0} students
+                      </span>
                     </p>
-                    <span className={`inline-block mt-2 px-2 py-1 rounded text-[10px] font-bold tracking-wider ${q.status === 'active' ? 'bg-green-500/20 text-green-500' : 'bg-zinc-800 text-gray-500'}`}>
-                      {q.status.toUpperCase()}
-                    </span>
+                    {(() => {
+                      const now = new Date();
+                      const start = q.startTime ? new Date(q.startTime) : null;
+                      const end = q.endTime ? new Date(q.endTime) : null;
+                      if (start && now < start) return <span className="inline-block mt-2 px-2 py-1 rounded text-[10px] font-bold tracking-wider bg-blue-500/20 text-blue-400">SCHEDULED</span>;
+                      if (end && now > end) return <span className="inline-block mt-2 px-2 py-1 rounded text-[10px] font-bold tracking-wider bg-zinc-800 text-gray-500">ENDED</span>;
+                      return <span className="inline-block mt-2 px-2 py-1 rounded text-[10px] font-bold tracking-wider bg-green-500/20 text-green-500">LIVE NOW</span>;
+                    })()}
                   </div>
                   <div className="flex gap-2">
-                    <button onClick={() => handleToggleAssignmentStatus(q)} className={`p-2 rounded-lg transition-colors ${q.status === 'draft' ? 'text-green-500 hover:bg-green-500/10' : 'text-red-500 hover:bg-red-500/10'}`}>
-                      {q.status === 'draft' ? <Play className="w-5 h-5" /> : <Square fill="currentColor" className="w-5 h-5" />}
-                    </button>
                     <button onClick={() => { resetAssignmentForm(q); setShowAssignmentModal(true); }} className="p-2 text-blue-400 hover:bg-blue-400/10 rounded-lg">
                       <Edit2 className="w-5 h-5" />
                     </button>
@@ -1165,6 +1176,22 @@ export function AdminDashboard({
                     <option value="Medium">Medium</option>
                     <option value="Hard">Hard</option>
                   </select>
+                </div>
+
+                <div className="flex items-center gap-3 bg-black/40 border border-zinc-800 p-4 rounded-xl">
+                  <input
+                    type="checkbox"
+                    id="isPractice"
+                    checked={formData.isPractice}
+                    onChange={(e) => setFormData({ ...formData, isPractice: e.target.checked })}
+                    className="w-5 h-5 rounded border-zinc-800 bg-black text-white focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  />
+                  <label htmlFor="isPractice" className="text-sm font-medium text-gray-300 cursor-pointer select-none">
+                    Visible in Student Practice Bank
+                  </label>
+                  <span className="text-[10px] text-gray-500 ml-auto uppercase tracking-tighter">
+                    {formData.isPractice ? 'Public' : 'Hidden'}
+                  </span>
                 </div>
 
                 <div>
@@ -1574,15 +1601,16 @@ export function AdminDashboard({
                     onChange={e => setAssignmentFormData({ ...assignmentFormData, title: e.target.value })}
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-gray-500 uppercase mb-2 tracking-widest">Duration (Minutes)</label>
-                  <input
-                    type="number"
-                    className="w-full bg-black border border-zinc-800 rounded-xl py-3 px-4 text-white focus:outline-none focus:border-zinc-500 transition-colors"
-                    value={assignmentFormData.durationMinutes}
-                    onChange={e => setAssignmentFormData({ ...assignmentFormData, durationMinutes: parseInt(e.target.value) || 0 })}
-                  />
-                </div>
+                <DateTimePicker
+                  label="Start Time"
+                  date={assignmentFormData.startTime}
+                  setDate={(date) => setAssignmentFormData({ ...assignmentFormData, startTime: date })}
+                />
+                <DateTimePicker
+                  label="End Time (Deadline)"
+                  date={assignmentFormData.endTime}
+                  setDate={(date) => setAssignmentFormData({ ...assignmentFormData, endTime: date })}
+                />
               </div>
 
               <div>

@@ -69,6 +69,10 @@ const dualityQuestionSchema = new mongoose.Schema({
         cpp: { type: String, default: '' },
         java: { type: String, default: '' },
     },
+    isPractice: {
+        type: Boolean,
+        default: true,
+    },
     createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'DualityUser',
