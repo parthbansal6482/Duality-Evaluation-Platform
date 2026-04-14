@@ -53,7 +53,8 @@ cp .env.example .env
 nano .env
 ```
 **Update these values:**
-- `MONGODB_URI`: Leave as `mongodb://mongodb:27017/duality` (Docker handles this!).
+- `MONGODB_URI`: Primary database for **Competition** mode. Leave as `mongodb://mongodb:27017/duality` for Docker.
+- `MONGODB_EXTENDED_URI`: Dedicated database for **Duality Extended** mode. Leave as `mongodb://mongodb:27017/duality-extended` for Docker.
 - `REDIS_URL`: Leave as `redis://redis:6379`.
 - `JWT_SECRET`: Type a long random string of characters.
 - `GOOGLE_CLIENT_ID`: Get this from the [Google Cloud Console](https://console.cloud.google.com/).

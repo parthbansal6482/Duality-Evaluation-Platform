@@ -4,6 +4,10 @@ const settingsSchema = new mongoose.Schema({
     isPasteEnabled: {
         type: Boolean,
         default: true
+    },
+    autoApproveTeams: {
+        type: Boolean,
+        default: false
     }
 }, { timestamps: true });
 

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getDBConnection } = require('../../config/database');
+const { getExtendedConnection } = require('../../config/extendedDatabase');
 
 const allowedEmailSchema = new mongoose.Schema({
     email: {
@@ -29,7 +29,7 @@ const allowedEmailSchema = new mongoose.Schema({
 let DualityAllowedEmail;
 const getModel = () => {
     if (!DualityAllowedEmail) {
-        const conn = getDBConnection();
+        const conn = getExtendedConnection();
         DualityAllowedEmail = conn.model('DualityAllowedEmail', allowedEmailSchema);
     }
     return DualityAllowedEmail;

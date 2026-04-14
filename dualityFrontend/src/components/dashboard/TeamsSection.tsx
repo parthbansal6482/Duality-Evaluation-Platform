@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Check, X, Eye, Users as UsersIcon, Mail } from 'lucide-react';
-import { getAllTeams, approveTeam, rejectTeam } from '../../services/team.service';
+import { Search, Check, X, Eye, Users as UsersIcon, Mail, CheckCircle2 } from 'lucide-react';
+import { getAllTeams, approveTeam, rejectTeam, approveAllPending } from '../../services/team.service';
 import { socketService } from '../../services/extended.socket.service';
 import { LeaderboardTeam } from '../../services/team.service';
 
@@ -102,6 +102,21 @@ export function TeamsSection() {
     }
   };
 
+  const handleApproveAll = async () => {
+    if (confirm('Are you sure you want to approve ALL pending teams?')) {
+      try {
+        setLoading(true);
+        const res = await approveAllPending();
+        alert(res.message || 'All teams approved successfully');
+        await fetchTeams();
+      } catch (err: any) {
+        alert(err.response?.data?.message || 'Failed to approve all teams');
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
   const statusColors = {
     pending: 'text-yellow-500 bg-yellow-500/10',
     approved: 'text-green-500 bg-green-500/10',
@@ -118,9 +133,20 @@ export function TeamsSection() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-white">Team Management</h2>
-        <p className="text-gray-400 mt-1">Review and manage registered teams</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-white">Team Management</h2>
+          <p className="text-gray-400 mt-1">Review and manage registered teams</p>
+        </div>
+        {statusCounts.pending > 0 && (
+          <button
+            onClick={handleApproveAll}
+            className="flex items-center gap-2 bg-green-500 text-black px-4 py-2 rounded-lg font-bold hover:bg-green-400 transition-all shadow-[0_0_15px_rgba(34,197,94,0.3)]"
+          >
+            <CheckCircle2 className="w-4 h-4" />
+            <span>Approve All Pending</span>
+          </button>
+        )}
       </div>
 
       {/* Stats */}

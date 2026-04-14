@@ -243,7 +243,7 @@ const broadcastRoundUpdate = (round) => {
     console.log(`[Socket] Round update: ${round.name} (${round.status})`);
 };
 
-// ==================== DUALITY PRACTICE SECTION ====================
+// ==================== DUALITY EXTENDED SECTION ====================
 
 const activeDualityUsers = new Map(); // userId -> socketId
 
@@ -321,7 +321,7 @@ module.exports = {
     broadcastDisqualificationUpdate,
     broadcastSabotageAttack,
     broadcastRoundUpdate,
-    // Duality Practice
+    // Duality Extended
     addDualityUser,
     removeDualityUser,
     broadcastDualitySubmissionUpdate,

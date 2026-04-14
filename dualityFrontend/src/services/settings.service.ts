@@ -5,7 +5,7 @@ export const getSettings = async () => {
     return res.data;
 };
 
-export const updateSettings = async (settings: { isPasteEnabled?: boolean }) => {
+export const updateSettings = async (settings: { isPasteEnabled?: boolean, autoApproveTeams?: boolean }) => {
     const res = await api.put('/settings', settings);
     return res.data;
 };

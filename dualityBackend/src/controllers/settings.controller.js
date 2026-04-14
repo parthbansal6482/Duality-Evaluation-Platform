@@ -16,7 +16,8 @@ exports.getSettings = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                isPasteEnabled: settings.isPasteEnabled
+                isPasteEnabled: settings.isPasteEnabled,
+                autoApproveTeams: settings.autoApproveTeams
             }
         });
     } catch (error) {
@@ -34,7 +35,7 @@ exports.getSettings = async (req, res) => {
  */
 exports.updateSettings = async (req, res) => {
     try {
-        const { isPasteEnabled } = req.body;
+        const { isPasteEnabled, autoApproveTeams } = req.body;
         
         let settings = await Settings.findOne();
         
@@ -46,13 +47,18 @@ exports.updateSettings = async (req, res) => {
             settings.isPasteEnabled = isPasteEnabled;
         }
 
+        if (typeof autoApproveTeams === 'boolean') {
+            settings.autoApproveTeams = autoApproveTeams;
+        }
+
         await settings.save();
 
         res.status(200).json({
             success: true,
             message: 'Settings updated successfully',
             data: {
-                isPasteEnabled: settings.isPasteEnabled
+                isPasteEnabled: settings.isPasteEnabled,
+                autoApproveTeams: settings.autoApproveTeams
             }
         });
     } catch (error) {

@@ -6,7 +6,7 @@ const cors = require('cors');
 const { createAdapter } = require('@socket.io/redis-adapter');
 const connection = require('./config/redis');
 const { connectDB } = require('./config/database');
-const { connectPracticeDB } = require('./config/practiceDatabase');
+const { connectExtendedDB } = require('./config/extendedDatabase');
 
 const {
     initializeSocket,
@@ -16,7 +16,7 @@ const {
     isTeamActive,
     addActiveTeam,
     removeActiveTeam,
-    // Duality Practice
+    // Duality Extended (Practice/Assignments mode)
     addDualityUser,
     removeDualityUser,
 } = require('./socket');
@@ -31,7 +31,7 @@ const roundRoutes = require('./routes/round.routes');
 const submissionRoutes = require('./routes/submission.routes');
 const settingsRoutes = require('./routes/settings.routes');
 
-// ── Duality Practice / Quiz Routes ───────────────────────────────────────────
+// ── Duality Extended / Quiz Routes ───────────────────────────────────────────
 const dualityAuthRoutes = require('./routes/duality/dualityAuth.routes');
 const dualityAllowedEmailRoutes = require('./routes/duality/dualityAllowedEmail.routes');
 const dualityQuestionRoutes = require('./routes/duality/dualityQuestion.routes');
@@ -113,7 +113,7 @@ io.on('connection', async (socket) => {
         broadcastCheatingViolation(teamName, roundName, violationType, action, duration);
     });
 
-    // Duality Practice: user authentication
+    // Duality Extended: user authentication
     socket.on('duality:authenticate', (token) => {
         try {
             const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET);
@@ -147,7 +147,7 @@ app.use('/api/rounds', roundRoutes);
 app.use('/api/submissions', submissionRoutes);
 app.use('/api/settings', settingsRoutes);
 
-// ── Routes — Duality Practice / Quiz ─────────────────────────────────────────
+// ── Routes — Duality Extended / Quiz ─────────────────────────────────────────
 app.use('/api/duality/auth', dualityAuthRoutes);
 app.use('/api/duality/allowed-emails', dualityAllowedEmailRoutes);
 app.use('/api/duality/questions', dualityQuestionRoutes);
@@ -187,11 +187,11 @@ const startServer = async () => {
         // Initialize connections to both databases
         await connectDB();
         
-        // Only connect to practice DB if URI is provided
-        if (process.env.MONGODB_PRACTICE_URI) {
-            await connectPracticeDB();
+        // Only connect to extended DB if URI is provided
+        if (process.env.MONGODB_EXTENDED_URI) {
+            await connectExtendedDB();
         } else {
-            console.log('[API] MONGODB_PRACTICE_URI not found, skipping practice DB connection');
+            console.log('[API] MONGODB_EXTENDED_URI not found, skipping extended DB connection');
         }
 
         server.listen(PORT, () => {
@@ -205,10 +205,10 @@ const startServer = async () => {
                 submissionQueue.start();
                 console.log('[API] Extended Competition background worker started');
 
-                // Duality Practice Worker (BullMQ based)
+                // Duality Extended Worker (BullMQ based)
                 const dualitySubmissionQueue = require('./services/dualitySubmissionQueue');
                 dualitySubmissionQueue.start();
-                console.log('[API] Duality Practice background worker started');
+                console.log('[API] Duality Extended background worker started');
             } else {
                 console.log('[API] Running in API-only mode (Distributed Workers expected)');
             }

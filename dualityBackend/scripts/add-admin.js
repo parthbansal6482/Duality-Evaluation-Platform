@@ -2,7 +2,7 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 const mongoose = require('mongoose');
 const Admin = require('../src/models/Admin');
-const { connectDB } = require('../src/config/database');
+const { connectExtendedDB } = require('../src/config/extendedDatabase');
 const getDualityUser = require('../src/models/duality/DualityUser');
 const readline = require('readline');
 
@@ -18,7 +18,7 @@ async function run() {
         console.log("=== EvalHub Admin Assignment Tool ===");
         const email = await askQuestion("Enter the user's email address: ");
 
-        await connectDB();
+        await connectExtendedDB();
         const DualityUser = getDualityUser();
 
         let user = await DualityUser.findOne({ email });

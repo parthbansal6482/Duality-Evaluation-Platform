@@ -46,16 +46,6 @@ export const adminLogin = async (data: AdminLoginData) => {
     return response.data;
 };
 
-export const adminGoogleLogin = async (credential: string) => {
-    const response = await api.post('/admin/google-login', { credential });
-    if (response.data.success) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.admin));
-        localStorage.setItem('userType', 'admin');
-    }
-    return response.data;
-};
-
 export const getAdminProfile = async () => {
     const response = await api.get('/admin/profile');
     return response.data;
@@ -69,16 +59,6 @@ export const teamRegister = async (data: TeamRegisterData) => {
 
 export const teamLogin = async (data: TeamLoginData) => {
     const response = await api.post('/team/login', data);
-    if (response.data.success) {
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('user', JSON.stringify(response.data.team));
-        localStorage.setItem('userType', 'team');
-    }
-    return response.data;
-};
-
-export const teamGoogleLogin = async (credential: string) => {
-    const response = await api.post('/team/google-login', { credential });
     if (response.data.success) {
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('user', JSON.stringify(response.data.team));

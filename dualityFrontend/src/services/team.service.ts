@@ -168,6 +168,14 @@ export const rejectTeam = async (teamId: string) => {
 };
 
 /**
+ * Approve all pending teams (Admin only)
+ */
+export const approveAllPending = async () => {
+    const response = await api.put('/teams/approve-all');
+    return response.data;
+};
+
+/**
  * Toggle team disqualification for a round (Admin only)
  */
 export const toggleDisqualification = async (teamId: string, roundId: string) => {

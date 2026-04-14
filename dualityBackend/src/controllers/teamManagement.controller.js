@@ -172,3 +172,38 @@ exports.toggleDisqualification = async (req, res) => {
         });
     }
 };
+
+// @desc    Approve all pending teams
+// @route   PUT /api/teams/approve-all
+// @access  Private (Admin)
+exports.approveAllPending = async (req, res) => {
+    try {
+        const result = await Team.updateMany(
+            { status: 'pending' },
+            { 
+                $set: { 
+                    status: 'approved',
+                    approvedBy: req.admin._id,
+                    approvedAt: Date.now()
+                } 
+            }
+        );
+
+        if (result.matchedCount > 0) {
+            broadcastLeaderboardUpdate();
+        }
+
+        res.status(200).json({
+            success: true,
+            message: `Successfully approved ${result.modifiedCount} teams`,
+            count: result.modifiedCount
+        });
+    } catch (error) {
+        console.error('Approve all teams error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error',
+            error: error.message,
+        });
+    }
+};

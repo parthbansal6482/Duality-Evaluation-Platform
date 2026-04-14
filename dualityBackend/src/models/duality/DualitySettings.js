@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getDBConnection } = require('../../config/database');
+const { getExtendedConnection } = require('../../config/extendedDatabase');
 
 const dualitySettingsSchema = new mongoose.Schema({
     isOpenRegistration: {
@@ -14,7 +14,7 @@ const dualitySettingsSchema = new mongoose.Schema({
 
 const getDualitySettings = () => {
     // Return existing model or create new one on the DB connection
-    const dbConn = getDBConnection();
+    const dbConn = getExtendedConnection();
     return dbConn.models.DualitySettings || dbConn.model('DualitySettings', dualitySettingsSchema);
 };
 

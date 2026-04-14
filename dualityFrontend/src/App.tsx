@@ -232,7 +232,7 @@ export default function App() {
     }
 
     if (extendedView === 'admin-auth') {
-      return <AdminAuth onLogin={handleExtendedAdminLogin} />;
+      return <AdminAuth onLogin={handleExtendedAdminLogin} onBack={() => setExtendedView('select-role')} />;
     }
 
     if (extendedView === 'admin-dashboard') {
@@ -240,7 +240,7 @@ export default function App() {
     }
 
     if (extendedView === 'team-auth') {
-      return <TeamAuth onLogin={handleExtendedTeamLogin} />;
+      return <TeamAuth onLogin={handleExtendedTeamLogin} onBack={() => setExtendedView('select-role')} />;
     }
 
     if (extendedView === 'team-dashboard') {

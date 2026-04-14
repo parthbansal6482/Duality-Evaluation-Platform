@@ -10,7 +10,6 @@ const {
     purchaseToken,
     activateShield,
     launchSabotage,
-    googleLogin,
 } = require('../controllers/team.controller');
 const { protect, teamOnly } = require('../middleware/auth');
 const {
@@ -22,7 +21,6 @@ const {
 // Public routes
 router.post('/register', teamRegisterRules, validate, register);
 router.post('/login', teamLoginRules, validate, login);
-router.post('/google-login', googleLogin);
 
 // Protected routes
 router.get('/profile', protect, teamOnly, getProfile);

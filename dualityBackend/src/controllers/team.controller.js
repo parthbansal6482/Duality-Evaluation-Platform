@@ -5,8 +5,7 @@ const {
     broadcastTeamStatsUpdate,
     broadcastLeaderboardUpdate
 } = require('../socket');
-const { OAuth2Client } = require('google-auth-library');
-const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const Settings = require('../models/Settings');
 
 // @desc    Register team
 // @route   POST /api/team/register
@@ -32,16 +31,35 @@ exports.register = async (req, res) => {
             });
         }
 
+        // Validate member emails (must be @bmu.edu.in)
+        const invalidEmails = members.filter(m => !m.email.toLowerCase().endsWith('@bmu.edu.in'));
+        if (invalidEmails.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: 'All team members must use @bmu.edu.in email addresses',
+                invalidEmails
+            });
+        }
+
+        // Check if auto-approve is enabled
+        const settings = await Settings.findOne();
+        const status = (settings && settings.autoApproveTeams) ? 'approved' : 'pending';
+
         // Create team
         const team = await Team.create({
             teamName,
             password,
             members,
+            status
         });
+
+        const successMessage = status === 'approved' 
+            ? 'Team registered and approved successfully!' 
+            : 'Team registered successfully. Waiting for admin approval.';
 
         res.status(201).json({
             success: true,
-            message: 'Team registered successfully. Waiting for admin approval.',
+            message: successMessage,
             team: {
                 id: team._id,
                 teamName: team.teamName,
@@ -619,85 +637,4 @@ exports.launchSabotage = async (req, res) => {
         });
     }
 };
-// @desc    Google Login for Teams
-// @route   POST /api/team/google-login
-// @access  Public
-exports.googleLogin = async (req, res) => {
-    try {
-        const { credential } = req.body;
 
-        if (!credential) {
-            return res.status(400).json({
-                success: false,
-                message: 'Google credential is required',
-            });
-        }
-
-        // Verify Google token
-        const ticket = await client.verifyIdToken({
-            idToken: credential,
-            audience: process.env.GOOGLE_CLIENT_ID,
-        });
-        const payload = ticket.getPayload();
-        const { email } = payload;
-
-        // Enforce @bmu.edu.in domain
-        if (!email.endsWith('@bmu.edu.in')) {
-            return res.status(403).json({
-                success: false,
-                message: 'Only @bmu.edu.in email addresses are allowed',
-            });
-        }
-
-        // Find team where one of the members has this email
-        const team = await Team.findOne({
-            'members.email': email.toLowerCase()
-        });
-
-        if (!team) {
-            return res.status(401).json({
-                success: false,
-                message: 'No team found associated with this email',
-            });
-        }
-
-        // Check if team is approved
-        if (team.status !== 'approved') {
-            return res.status(403).json({
-                success: false,
-                message: `Your team registration is ${team.status}. Please wait for admin approval.`,
-                status: team.status,
-            });
-        }
-
-        // Check if team is already active on another device
-        const { isTeamActive } = require('../socket');
-        if (isTeamActive(team._id)) {
-            return res.status(403).json({
-                success: false,
-                message: 'Your team is already logged in on another device. Please close the other session first.',
-            });
-        }
-
-        // Generate token
-        const token = generateToken(team._id, 'team');
-
-        res.status(200).json({
-            success: true,
-            token,
-            team: {
-                id: team._id,
-                teamName: team.teamName,
-                members: team.members,
-                status: team.status,
-            },
-        });
-    } catch (error) {
-        console.error('Team Google login error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error during authentication',
-            error: error.message,
-        });
-    }
-};

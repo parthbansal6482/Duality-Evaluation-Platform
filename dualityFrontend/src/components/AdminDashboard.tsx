@@ -9,7 +9,8 @@ import {
   Menu,
   X,
   Settings,
-  Code2
+  Code2,
+  CheckSquare
 } from 'lucide-react';
 import { QuestionsSection } from './dashboard/QuestionsSection';
 import { RoundsSection } from './dashboard/RoundsSection';
@@ -312,32 +313,36 @@ function OverviewSection({ onNavigate }: { onNavigate: (section: Section) => voi
 
 function SettingsSection() {
   const [isPasteEnabled, setIsPasteEnabled] = useState(true);
+  const [autoApproveTeams, setAutoApproveTeams] = useState(false);
 
   useEffect(() => {
     import('../services/settings.service').then(({ getSettings }) => {
       getSettings().then(res => {
         if (res.success && res.data) {
           setIsPasteEnabled(res.data.isPasteEnabled !== false);
+          setAutoApproveTeams(!!res.data.autoApproveTeams);
         }
       }).catch(console.error);
     });
   }, []);
 
-  const togglePasteEnabled = async () => {
+  const updateSetting = async (field: 'isPasteEnabled' | 'autoApproveTeams', value: boolean) => {
     try {
-      const newValue = !isPasteEnabled;
-      setIsPasteEnabled(newValue);
+      if (field === 'isPasteEnabled') setIsPasteEnabled(value);
+      else setAutoApproveTeams(value);
       
       const { updateSettings } = await import('../services/settings.service');
-      const res = await updateSettings({ isPasteEnabled: newValue });
+      const res = await updateSettings({ [field]: value });
       
       if (!res.success) {
-        setIsPasteEnabled(!newValue);
+        if (field === 'isPasteEnabled') setIsPasteEnabled(!value);
+        else setAutoApproveTeams(!value);
         alert('Failed to update settings');
       }
     } catch (err) {
       console.error(err);
-      setIsPasteEnabled(!isPasteEnabled);
+      if (field === 'isPasteEnabled') setIsPasteEnabled(!value);
+      else setAutoApproveTeams(!value);
       alert('Error updating setting');
     }
   };
@@ -350,24 +355,46 @@ function SettingsSection() {
           <p className="text-sm text-gray-400 mt-1">Configure competition-wide behaviors and restrictions.</p>
         </div>
 
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-12 py-4">
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-12 py-6 border-b border-zinc-800">
           <div>
             <h3 className="text-lg font-bold text-white mb-2">Editor Pasting</h3>
             <p className="text-sm text-gray-500 leading-relaxed max-w-2xl">
-              Controls whether students can paste code straight into the Monaco editor during a round. When disabled, standard clipboard actions and keyboard shortcuts (<span className="text-gray-300 font-semibold">Ctrl+V</span> / <span className="text-gray-300 font-semibold">Cmd+V</span>) are intercepted and blocked in the coding environment.
+              Controls whether students can paste code straight into the Monaco editor during a round. When disabled, standard clipboard actions and keyboard shortcuts are intercepted and blocked.
             </p>
           </div>
-          <div className="flex-shrink-0 mt-2 md:mt-0">
+          <div className="flex-shrink-0">
             <button
-              onClick={togglePasteEnabled}
+              onClick={() => updateSetting('isPasteEnabled', !isPasteEnabled)}
               className={`flex items-center gap-3 px-6 py-3 rounded-xl text-sm transition-all focus:outline-none whitespace-nowrap ${
                 isPasteEnabled 
                   ? 'bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 font-medium border border-zinc-700 hover:border-zinc-500'
-                  : 'bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)] ring-2 ring-white/50 ring-offset-2 ring-offset-zinc-900' 
+                  : 'bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)]' 
               }`}
             >
-              <Code2 className={`w-4 h-4`} />
+              <Code2 className="w-4 h-4" />
               {isPasteEnabled ? 'Status: ALLOWED' : 'Status: BLOCKED'}
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 md:gap-12 py-6">
+          <div>
+            <h3 className="text-lg font-bold text-white mb-2">Auto-Approve Teams</h3>
+            <p className="text-sm text-gray-500 leading-relaxed max-w-2xl">
+              When enabled, all newly registered teams will be automatically approved and can start participating immediately without waiting for manual admin verification.
+            </p>
+          </div>
+          <div className="flex-shrink-0">
+            <button
+              onClick={() => updateSetting('autoApproveTeams', !autoApproveTeams)}
+              className={`flex items-center gap-3 px-6 py-3 rounded-xl text-sm transition-all focus:outline-none whitespace-nowrap ${
+                autoApproveTeams 
+                  ? 'bg-white text-black font-semibold shadow-[0_0_20px_rgba(255,255,255,0.15)]'
+                  : 'bg-zinc-800 text-gray-400 hover:text-white hover:bg-zinc-700 font-medium border border-zinc-700 hover:border-zinc-500' 
+              }`}
+            >
+              <CheckSquare className="w-4 h-4" />
+              {autoApproveTeams ? 'Mode: AUTO' : 'Mode: MANUAL'}
             </button>
           </div>
         </div>

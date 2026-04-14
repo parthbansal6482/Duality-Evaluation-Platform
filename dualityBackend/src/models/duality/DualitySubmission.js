@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getDBConnection } = require('../../config/database');
+const { getExtendedConnection } = require('../../config/extendedDatabase');
 
 const dualitySubmissionSchema = new mongoose.Schema({
     user: {
@@ -72,7 +72,7 @@ dualitySubmissionSchema.index({ status: 1, createdAt: 1 });
 let DualitySubmission;
 const getModel = () => {
     if (!DualitySubmission) {
-        const conn = getDBConnection();
+        const conn = getExtendedConnection();
         DualitySubmission = conn.model('DualitySubmission', dualitySubmissionSchema);
     }
     return DualitySubmission;

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { getDBConnection } = require('../../config/database');
+const { getExtendedConnection } = require('../../config/extendedDatabase');
 
 const exampleSchema = new mongoose.Schema({
     input: { type: String, required: true },
@@ -81,7 +81,7 @@ const dualityQuestionSchema = new mongoose.Schema({
 let DualityQuestion;
 const getModel = () => {
     if (!DualityQuestion) {
-        const conn = getDBConnection();
+        const conn = getExtendedConnection();
         DualityQuestion = conn.model('DualityQuestion', dualityQuestionSchema);
     }
     return DualityQuestion;
