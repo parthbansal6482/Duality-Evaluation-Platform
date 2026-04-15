@@ -6,6 +6,64 @@ const { getVisibleCases, getAllCases } = require('../utils/questionTestCases');
 
 const hasId = (arr = [], id) => arr.some((v) => String(v) === String(id));
 
+const lockRoundProgressForApprovedTeams = async (roundId) => {
+    await Team.updateMany(
+        { status: 'approved' },
+        { $addToSet: { completedRounds: roundId } }
+    );
+};
+
+const completeRoundAndLockProgress = async (roundId, endTime = new Date()) => {
+    const round = await Round.findByIdAndUpdate(
+        roundId,
+        { $set: { status: 'completed', endTime } },
+        { new: true }
+    );
+
+    if (!round) return null;
+
+    await lockRoundProgressForApprovedTeams(roundId);
+    return round;
+};
+
+const isRoundExpired = (round) =>
+    round?.status === 'active' && round?.endTime && new Date(round.endTime).getTime() <= Date.now();
+
+const finalizeRoundIfExpired = async (round) => {
+    if (!isRoundExpired(round)) return null;
+
+    const completedRound = await completeRoundAndLockProgress(
+        round._id,
+        round.endTime || new Date()
+    );
+
+    if (completedRound) {
+        const { broadcastRoundUpdate } = require('../socket');
+        broadcastRoundUpdate(completedRound);
+    }
+
+    return completedRound;
+};
+
+const finalizeAllExpiredRounds = async () => {
+    const now = new Date();
+    const expiredRounds = await Round.find({
+        status: 'active',
+        endTime: { $lte: now },
+    }).select('_id endTime');
+
+    if (!expiredRounds.length) return;
+
+    const { broadcastRoundUpdate } = require('../socket');
+
+    for (const round of expiredRounds) {
+        const completedRound = await completeRoundAndLockProgress(round._id, round.endTime || now);
+        if (completedRound) {
+            broadcastRoundUpdate(completedRound);
+        }
+    }
+};
+
 // ... existing admin functions ...
 
 /**
@@ -15,6 +73,8 @@ const hasId = (arr = [], id) => arr.some((v) => String(v) === String(id));
  */
 const getActiveRounds = async (req, res) => {
     try {
+        await finalizeAllExpiredRounds();
+
         const rounds = await Round.find({ status: { $in: ['active', 'upcoming'] } })
             .select('name duration status startTime endTime')
             .sort({ startTime: 1 });
@@ -69,6 +129,13 @@ const getRoundQuestions = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Round not found',
+            });
+        }
+
+        if (await finalizeRoundIfExpired(round)) {
+            return res.status(403).json({
+                success: false,
+                message: 'This round has ended',
             });
         }
 
@@ -202,6 +269,13 @@ const runCode = async (req, res) => {
             });
         }
 
+        if (await finalizeRoundIfExpired(round)) {
+            return res.status(403).json({
+                success: false,
+                message: 'This round has ended',
+            });
+        }
+
         if (round.status !== 'active') {
             return res.status(403).json({
                 success: false,
@@ -306,6 +380,13 @@ const submitSolution = async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Round not found',
+            });
+        }
+
+        if (await finalizeRoundIfExpired(round)) {
+            return res.status(403).json({
+                success: false,
+                message: 'This round has ended',
             });
         }
 
@@ -880,6 +961,10 @@ const updateRoundStatus = async (req, res) => {
                 success: false,
                 message: 'Round not found',
             });
+        }
+
+        if (status === 'completed') {
+            await lockRoundProgressForApprovedTeams(round._id);
         }
 
         // Broadcast round update

@@ -2,13 +2,14 @@ const express = require('express');
 const router = express.Router();
 const submissionController = require('../controllers/submission.controller');
 const { protect, teamOnly } = require('../middleware/auth');
+const { submissionLimiter } = require('../middleware/rateLimiter');
 
 // All routes require team authentication
 router.use(protect);
 router.use(teamOnly);
 
 // Submit code
-router.post('/', submissionController.submitCode);
+router.post('/', submissionLimiter, submissionController.submitCode);
 
 // Get submission by ID
 router.get('/:id', submissionController.getSubmission);

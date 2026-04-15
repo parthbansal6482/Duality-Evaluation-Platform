@@ -17,10 +17,11 @@ const {
     teamLoginRules,
     validate,
 } = require('../middleware/validation');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 // Public routes
-router.post('/register', teamRegisterRules, validate, register);
-router.post('/login', teamLoginRules, validate, login);
+router.post('/register', authLimiter, teamRegisterRules, validate, register);
+router.post('/login', authLimiter, teamLoginRules, validate, login);
 
 // Protected routes
 router.get('/profile', protect, teamOnly, getProfile);

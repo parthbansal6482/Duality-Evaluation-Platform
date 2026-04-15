@@ -17,6 +17,7 @@ const {
 } = require('../controllers/round.controller');
 const { protect, adminOnly, teamOnly } = require('../middleware/auth');
 const { validateRound } = require('../middleware/validation');
+const { submissionLimiter, runLimiter } = require('../middleware/rateLimiter');
 
 // Team routes - must come before admin routes to avoid conflicts
 // @route   GET /api/rounds/active
@@ -32,12 +33,12 @@ router.get('/:id/questions', protect, teamOnly, getRoundQuestions);
 // @route   POST /api/rounds/:id/run
 // @desc    Run code against sample test cases (no submission)
 // @access  Private/Team
-router.post('/:id/run', protect, teamOnly, runCode);
+router.post('/:id/run', protect, teamOnly, runLimiter, runCode);
 
 // @route   POST /api/rounds/:id/submit
 // @desc    Submit solution for a question
 // @access  Private/Team
-router.post('/:id/submit', protect, teamOnly, submitSolution);
+router.post('/:id/submit', protect, teamOnly, submissionLimiter, submitSolution);
 
 // @route   GET /api/rounds/:id/submissions
 // @desc    Get team's submissions for a round
@@ -89,4 +90,3 @@ router.delete('/:id', deleteRound);
 router.patch('/:id/status', updateRoundStatus);
 
 module.exports = router;
-

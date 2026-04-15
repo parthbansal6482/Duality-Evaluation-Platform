@@ -11,9 +11,10 @@ const {
     adminLoginRules,
     validate,
 } = require('../middleware/validation');
+const { authLimiter } = require('../middleware/rateLimiter');
 
 // Public routes
-router.post('/login', adminLoginRules, validate, login);
+router.post('/login', authLimiter, adminLoginRules, validate, login);
 
 // Protected routes
 router.get('/profile', protect, adminOnly, getProfile);

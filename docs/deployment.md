@@ -129,7 +129,7 @@ Use **Nginx** or **Caddy** on the college server.
 
 Minimum target:
 - Public URL: `https://api.<yourdomain.com>`
-- Proxy to API container internal port (for example `localhost:5000`)
+- Proxy to API container internal port (for example `localhost:5001`)
 - Enforce HTTPS
 
 If your college network does not allow direct inbound traffic on `80/443`, use one of:

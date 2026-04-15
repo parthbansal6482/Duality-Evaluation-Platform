@@ -9,7 +9,7 @@ const { connectDB } = require('./config/database');
 const { connectExtendedDB } = require('./config/extendedDatabase');
 const { assertMongoSeparation } = require('./config/dbUris');
 const { assertStrictCollectionBoundaries } = require('./config/dbBoundaries');
-const { apiLimiter, submissionLimiter } = require('./middleware/rateLimiter');
+const { apiLimiter } = require('./middleware/rateLimiter');
 
 const {
     initializeSocket,
@@ -142,20 +142,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ── Routes — Extended Competition ─────────────────────────────────────────────
-app.use('/api/admin', adminRoutes);
-app.use('/api/team', teamRoutes);
-app.use('/api/teams', teamManagementRoutes);
-app.use('/api/stats', statsRoutes);
-app.use('/api/questions', questionRoutes);
-app.use('/api/rounds', roundRoutes);
-app.use('/api/submissions', submissionRoutes);
-app.use('/api/settings', settingsRoutes);
+app.use('/api/admin', apiLimiter, adminRoutes);
+app.use('/api/team', apiLimiter, teamRoutes);
+app.use('/api/teams', apiLimiter, teamManagementRoutes);
+app.use('/api/stats', apiLimiter, statsRoutes);
+app.use('/api/questions', apiLimiter, questionRoutes);
+app.use('/api/rounds', apiLimiter, roundRoutes);
+app.use('/api/submissions', apiLimiter, submissionRoutes);
+app.use('/api/settings', apiLimiter, settingsRoutes);
 
 // ── Routes — Duality Extended / Quiz ─────────────────────────────────────────
 app.use('/api/duality/auth', apiLimiter, dualityAuthRoutes);
 app.use('/api/duality/allowed-emails', apiLimiter, dualityAllowedEmailRoutes);
 app.use('/api/duality/questions', apiLimiter, dualityQuestionRoutes);
-app.use('/api/duality/submissions', submissionLimiter, dualitySubmissionRoutes);
+app.use('/api/duality/submissions', apiLimiter, dualitySubmissionRoutes);
 app.use('/api/duality/settings', apiLimiter, dualitySettingsRoutes);
 app.use('/api/duality/quiz', apiLimiter, quizRoutes);
 app.use('/api/duality/import', apiLimiter, dualityImportRoutes);
