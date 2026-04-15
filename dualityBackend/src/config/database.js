@@ -14,7 +14,7 @@ const connectDB = async () => {
         // mongoose.connect sets the global/default connection used by mongoose.model()
         const conn = await mongoose.connect(process.env.MONGODB_URI);
 
-        console.log(`Duality/Extended MongoDB Connected: ${conn.connection.host}`);
+        console.log(`Competition/Core MongoDB Connected: ${conn.connection.host}`);
         return conn.connection;
     } catch (error) {
         console.error(`Database Connection Error: ${error.message}`);

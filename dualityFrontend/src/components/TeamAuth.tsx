@@ -105,14 +105,6 @@ export function TeamAuth({
       return;
     }
 
-    // Domain validation: @bmu.edu.in
-    const invalidEmails = normalizedMembers.filter(m => !m.email.endsWith('@bmu.edu.in'));
-    if (invalidEmails.length > 0) {
-      setError('All team members must use @bmu.edu.in emails.');
-      setLoading(false);
-      return;
-    }
-
     try {
       const response = await teamRegister({
         teamName: trimmedTeamName,

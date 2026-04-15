@@ -31,16 +31,6 @@ exports.register = async (req, res) => {
             });
         }
 
-        // Validate member emails (must be @bmu.edu.in)
-        const invalidEmails = members.filter(m => !m.email.toLowerCase().endsWith('@bmu.edu.in'));
-        if (invalidEmails.length > 0) {
-            return res.status(400).json({
-                success: false,
-                message: 'All team members must use @bmu.edu.in email addresses',
-                invalidEmails
-            });
-        }
-
         // Check if auto-approve is enabled
         const settings = await Settings.findOne();
         const status = (settings && settings.autoApproveTeams) ? 'approved' : 'pending';
@@ -637,4 +627,3 @@ exports.launchSabotage = async (req, res) => {
         });
     }
 };
-

@@ -210,30 +210,72 @@ async function run() {
         console.log(`\n=== [${mode.toUpperCase()}] Question Seeder ===`);
         const email = await askQuestion("Enter your Admin email (to attribute as creator): ");
 
-        let user = await User.findOne({ email: email.toLowerCase().trim(), role: 'admin' });
+        const normalizedEmail = email.toLowerCase().trim();
+        const adminFilterByEmail =
+            mode === 'competition'
+                ? { email: normalizedEmail }
+                : { email: normalizedEmail, role: 'admin' };
+
+        const anyAdminFilter =
+            mode === 'competition'
+                ? {}
+                : { role: 'admin' };
+
+        let user = await User.findOne(adminFilterByEmail);
         if (!user) {
             console.log(`Admin ${email} not found. Attempting to use first available admin...`);
-            user = await User.findOne({ role: 'admin' });
+            user = await User.findOne(anyAdminFilter);
             if (!user) throw new Error(`No admins found in ${mode} database.`);
         }
 
         for (const data of questionsToAdd) {
             try {
-                // Determine model-specific format
-                const questionToCreate = {
-                    title: data.title,
-                    difficulty: data.difficulty,
-                    category: data.category,
-                    description: data.description,
-                    constraints: (typeof data.constraints === 'string') 
-                        ? data.constraints.split('\n').filter(c => c.trim() !== '')
-                        : data.constraints,
-                    examples: data.examples,
-                    testCases: data.testCases,
-                    boilerplate: data.boilerplateCode || data.boilerplate,
-                    driverCode: data.driverCode,
-                    createdBy: user._id
-                };
+                // Build payloads per schema.
+                // Competition Question model expects:
+                // - inputFormat/outputFormat: string (required)
+                // - constraints: string
+                // - testCases: number
+                // - hiddenTestCases: array of {input, output}
+                // - boilerplateCode
+                //
+                // Duality Question model expects:
+                // - constraints: string[]
+                // - testCases: array of {input, output}
+                // - boilerplate
+                const isCompetition = mode === 'competition';
+
+                const questionToCreate = isCompetition
+                    ? {
+                        title: data.title,
+                        difficulty: data.difficulty,
+                        category: data.category,
+                        description: data.description,
+                        inputFormat: data.inputFormat,
+                        outputFormat: data.outputFormat,
+                        constraints: typeof data.constraints === 'string'
+                            ? data.constraints
+                            : (data.constraints || []).join('\n'),
+                        examples: data.examples,
+                        hiddenTestCases: data.testCases,
+                        testCases: Array.isArray(data.testCases) ? data.testCases.length : Number(data.testCases) || 1,
+                        boilerplateCode: data.boilerplateCode || data.boilerplate,
+                        driverCode: data.driverCode,
+                        createdBy: user._id
+                    }
+                    : {
+                        title: data.title,
+                        difficulty: data.difficulty,
+                        category: data.category,
+                        description: data.description,
+                        constraints: typeof data.constraints === 'string'
+                            ? data.constraints.split('\n').filter(c => c.trim() !== '')
+                            : data.constraints,
+                        examples: data.examples,
+                        testCases: data.testCases,
+                        boilerplate: data.boilerplateCode || data.boilerplate,
+                        driverCode: data.driverCode,
+                        createdBy: user._id
+                    };
 
                 const created = await Question.create(questionToCreate);
                 console.log(`\n✅ Added "${created.title}" to ${mode} platform.`);
