@@ -1,44 +1,65 @@
-version: '3.8'
-
 services:
   # 1. MongoDB Database
   mongodb:
     image: mongo:latest
-    ports:
-      - "27017:27017"
+    restart: unless-stopped
+    expose:
+      - "27017"
     volumes:
       - duality_mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 2. Redis coordination hub
   redis:
     image: redis:alpine
-    ports:
-      - "6379:6379"
+    restart: unless-stopped
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # 3. Dedicated API Server
   api-server:
     build: 
       context: .
       dockerfile: docker/Dockerfile.server
+    restart: unless-stopped
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
       - MONGODB_URI=mongodb://mongodb:27017/duality
       - MONGODB_EXTENDED_URI=mongodb://mongodb:27017/duality-extended
       - REDIS_URL=redis://redis:6379
       - START_WORKER=false # API Server stays lightweight, only handles IO
+      - PORT=5001
     ports:
       - "5001:5001"
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   # 4. Isolated Execution Worker
   execution-worker:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
+    restart: unless-stopped
+    env_file:
+      - .env
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock # Required to run sibling Docker containers
+    command: >
+      sh -c "docker image inspect code-executor:latest >/dev/null 2>&1 || docker build -t code-executor:latest /app/docker && node src/worker.js"
     environment:
       - NODE_ENV=production
       - MONGODB_URI=mongodb://mongodb:27017/duality
@@ -46,8 +67,10 @@ services:
       - REDIS_URL=redis://redis:6379
       - QUEUE_CONCURRENCY=8 # Dedicated worker handles high compute load
     depends_on:
-      - mongodb
-      - redis
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   duality_mongo_data:
