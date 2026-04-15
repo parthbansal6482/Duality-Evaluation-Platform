@@ -83,12 +83,24 @@ nano .env
 ```
 
 Set/verify:
-- `MONGODB_URI=mongodb://mongodb:27017/duality`
-- `MONGODB_EXTENDED_URI=mongodb://mongodb:27017/duality-extended`
+- `MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality`
+- `MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended`
+- `ALLOW_SHARED_MONGODB=false` (recommended safety default)
+- `STRICT_DB_BOUNDARIES=true` (recommended; blocks startup when collections are mixed)
 - `REDIS_URL=redis://redis:6379`
 - `JWT_SECRET=<long-random-secret>`
 - `GOOGLE_CLIENT_ID=<google-oauth-client-id>`
 - `CLIENT_URL=https://<your-vercel-domain-or-custom-domain>`
+
+Mapping:
+- **Competition / Duality Extended (team battles)** uses `MONGODB_COMPETITION_URI`
+- **Assignments + Quizzes** uses `MONGODB_DUALITY_URI`
+
+Boundary audit (optional but recommended before production):
+```bash
+cd dualityBackend
+node scripts/audit-db-boundaries.js --strict
+```
 
 ### Frontend env for Vercel
 In Vercel project settings, set:

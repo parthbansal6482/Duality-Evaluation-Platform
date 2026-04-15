@@ -499,7 +499,9 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
       try {
         const response = await launchSabotage(targetTeamId, sabotageType);
         if (response.success) {
-          setSabotageTokens((prev) => prev - 1);
+          if (typeof response.data?.sabotageTokens === 'number') {
+            setSabotageTokens(response.data.sabotageTokens);
+          }
           setTacticalMessage({ text: `Launched ${sabotageType} attack!`, type: 'success' });
           if (response.data?.cooldownUntil) {
             setSabotageCooldown(new Date(response.data.cooldownUntil).getTime());
@@ -523,7 +525,9 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
       try {
         const response = await activateShield();
         if (response.success) {
-          setShieldTokens((prev) => prev - 1);
+          if (typeof response.data?.shieldTokens === 'number') {
+            setShieldTokens(response.data.shieldTokens);
+          }
           setIsShieldActive(true);
           setTacticalMessage({ text: 'Shield activated!', type: 'success' });
 

@@ -64,8 +64,6 @@ export function TacticalPanel({
   const sabotageTypes = [
     { id: 'blackout', name: 'Screen Blackout', duration: '60s' },
     { id: 'typing-delay', name: 'Typing Delay', duration: '60s' },
-    { id: 'format-chaos', name: 'Format Chaos', duration: '60s' },
-    { id: 'ui-glitch', name: 'UI Glitch', duration: '60s' },
   ];
 
 

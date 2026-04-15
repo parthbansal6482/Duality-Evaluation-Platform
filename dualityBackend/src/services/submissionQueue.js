@@ -163,6 +163,7 @@ class SubmissionQueue {
         // Ensure this is the first solve
         const previousAccepted = await Submission.findOne({
             team: teamId,
+            round: submission.round,
             question: submission.question,
             status: 'accepted',
             _id: { $ne: submission._id },

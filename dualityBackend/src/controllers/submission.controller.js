@@ -4,6 +4,7 @@ const Round = require('../models/Round');
 const Team = require('../models/Team');
 const { broadcastSubmissionUpdate } = require('../socket');
 const { getHiddenCases } = require('../utils/questionTestCases');
+const hasId = (arr = [], id) => arr.some((v) => String(v) === String(id));
 
 /**
  * Submit code for a question
@@ -48,7 +49,7 @@ exports.submitCode = async (req, res) => {
             });
         }
 
-        if (!round.questions.includes(questionId)) {
+        if (!hasId(round.questions, questionId)) {
             return res.status(400).json({
                 success: false,
                 message: 'Question does not belong to this round',

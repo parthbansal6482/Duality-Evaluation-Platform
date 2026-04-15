@@ -4,6 +4,8 @@ const Submission = require('../models/Submission');
 const Team = require('../models/Team');
 const { getVisibleCases, getAllCases } = require('../utils/questionTestCases');
 
+const hasId = (arr = [], id) => arr.some((v) => String(v) === String(id));
+
 // ... existing admin functions ...
 
 /**
@@ -79,7 +81,7 @@ const getRoundQuestions = async (req, res) => {
         }
 
         // Check if team is disqualified from this round
-        if (req.team.disqualifiedRounds && req.team.disqualifiedRounds.includes(req.params.id)) {
+        if (req.team.disqualifiedRounds && hasId(req.team.disqualifiedRounds, req.params.id)) {
             return res.status(403).json({
                 success: false,
                 message: 'Your team has been disqualified from this round',
@@ -87,7 +89,7 @@ const getRoundQuestions = async (req, res) => {
         }
 
         // Check if team has already completed this round
-        if (req.team.completedRounds && req.team.completedRounds.includes(req.params.id)) {
+        if (req.team.completedRounds && hasId(req.team.completedRounds, req.params.id)) {
             return res.status(403).json({
                 success: false,
                 message: 'You have already completed this round and cannot re-enter',
@@ -208,7 +210,7 @@ const runCode = async (req, res) => {
         }
 
         // Check if team is disqualified from this round
-        if (req.team.disqualifiedRounds && req.team.disqualifiedRounds.includes(roundId)) {
+        if (req.team.disqualifiedRounds && hasId(req.team.disqualifiedRounds, roundId)) {
             return res.status(403).json({
                 success: false,
                 message: 'Your team has been disqualified from this round',
@@ -224,7 +226,7 @@ const runCode = async (req, res) => {
             });
         }
 
-        if (!round.questions.includes(questionId)) {
+        if (!hasId(round.questions, questionId)) {
             return res.status(400).json({
                 success: false,
                 message: 'This question does not belong to this round',
@@ -315,7 +317,7 @@ const submitSolution = async (req, res) => {
         }
 
         // Check if team is disqualified from this round
-        if (req.team.disqualifiedRounds && req.team.disqualifiedRounds.includes(roundId)) {
+        if (req.team.disqualifiedRounds && hasId(req.team.disqualifiedRounds, roundId)) {
             return res.status(403).json({
                 success: false,
                 message: 'Your team has been disqualified from this round',
@@ -331,7 +333,7 @@ const submitSolution = async (req, res) => {
             });
         }
 
-        if (!round.questions.includes(questionId)) {
+        if (!hasId(round.questions, questionId)) {
             return res.status(400).json({
                 success: false,
                 message: 'This question does not belong to this round',
@@ -395,6 +397,7 @@ const submitSolution = async (req, res) => {
             // Check if this is the first accepted submission for this question
             const previousAccepted = await Submission.findOne({
                 team: teamId,
+                round: roundId,
                 question: questionId,
                 status: 'accepted',
                 _id: { $ne: submission._id },
@@ -524,6 +527,7 @@ async function runCodeAsync(submissionId, code, language, question, teamId) {
             // Check if this is the first accepted submission for this question
             const previousAccepted = await Submission.findOne({
                 team: teamId,
+                round: submission.round,
                 question: submission.question,
                 status: 'accepted',
                 _id: { $ne: submissionId },
@@ -908,6 +912,15 @@ const exitRound = async (req, res) => {
 
         console.log(`Team ${teamId} exiting round ${roundId}`);
 
+        // Do not allow exit-reset once round is marked complete.
+        const team = await Team.findById(teamId).select('completedRounds');
+        if (team?.completedRounds && hasId(team.completedRounds, roundId)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Round already completed. Progress is locked and cannot be reset.',
+            });
+        }
+
         // Find all submissions for this team in this round
         const submissions = await Submission.find({
             team: teamId,
@@ -981,7 +994,7 @@ const completeRound = async (req, res) => {
 
         // Check if already completed
         const team = await Team.findById(teamId);
-        if (team.completedRounds && team.completedRounds.includes(roundId)) {
+        if (team.completedRounds && hasId(team.completedRounds, roundId)) {
             return res.status(400).json({
                 success: false,
                 message: 'You have already completed this round',

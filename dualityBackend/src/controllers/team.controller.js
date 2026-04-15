@@ -493,7 +493,7 @@ exports.launchSabotage = async (req, res) => {
         const teamId = req.team._id;
 
         // Validate sabotage type
-        const validTypes = ['blackout', 'typing-delay', 'format-chaos', 'ui-glitch'];
+        const validTypes = ['blackout', 'typing-delay'];
         if (!validTypes.includes(sabotageType)) {
             return res.status(400).json({
                 success: false,
@@ -592,8 +592,6 @@ exports.launchSabotage = async (req, res) => {
         const durations = {
             'blackout': 60 * 1000,
             'typing-delay': 60 * 1000,
-            'format-chaos': 60 * 1000,
-            'ui-glitch': 60 * 1000
         };
         const duration = durations[sabotageType] || 30000;
 
