@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { protect, adminOnly } = require('../../middleware/dualityAuth');
+const { submissionLimiter } = require('../../middleware/rateLimiter');
 const {
     createQuiz,
     getQuizzes,
@@ -33,8 +34,8 @@ router.route('/:id')
 router.patch('/:id/activate', adminOnly, activateQuiz);
 router.patch('/:id/end', adminOnly, endQuiz);
 
-// Submissions
-router.post('/:id/submit', submitQuizAnswer);
+// Submissions (rate-limited individually)
+router.post('/:id/submit', submissionLimiter, submitQuizAnswer);
 router.post('/:id/save-draft', saveQuizDraft);
 router.post('/:id/finalize', finalizeQuizSubmission);
 router.get('/:id/results', adminOnly, getQuizResults);

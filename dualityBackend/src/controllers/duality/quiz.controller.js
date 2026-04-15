@@ -3,6 +3,20 @@ const getQuizSubmission = require('../../models/duality/QuizSubmission');
 const getDualityQuestion = require('../../models/duality/DualityQuestion');
 const getDualityUser = require('../../models/duality/DualityUser');
 const { runTestCases } = require('../../services/execution.service');
+const mongoose = require('mongoose');
+
+const MAX_CODE_SIZE_BYTES = 50 * 1024; // 50 KB
+
+// Helper: Check if a student is allowed to access a specific quiz
+const isStudentAssignedToQuiz = (quiz, user) => {
+    const isAssignedIndividually = quiz.assignedTo &&
+        quiz.assignedTo.some(uid => uid.toString() === user._id.toString());
+    const isAssignedToCohort = (quiz.targetYear === 'All' || quiz.targetYear === user.year);
+    return isAssignedIndividually || isAssignedToCohort;
+};
+
+// Helper: sanitize error messages in production
+const safeError = (err) => process.env.NODE_ENV === 'development' ? err.message : undefined;
 
 // ─── Quiz CRUD ────────────────────────────────────────────────────────────────
 
@@ -130,17 +144,35 @@ exports.getQuiz = async (req, res) => {
 /** PATCH /api/duality/quiz/:id — Update quiz (admin only) */
 exports.updateQuiz = async (req, res) => {
     try {
+        if (!mongoose.isValidObjectId(req.params.id)) {
+            return res.status(400).json({ success: false, message: 'Invalid quiz ID' });
+        }
         const Quiz = getQuiz();
-        const quiz = await Quiz.findByIdAndUpdate(req.params.id, req.body, {
+        // Allowlist only safe, user-controlled fields to prevent mass assignment
+        const {
+            title, description, durationMinutes, startTime, endTime,
+            questions, assignedTo, targetYear, isLockdown
+        } = req.body;
+        const safeUpdate = {
+            ...(title !== undefined && { title }),
+            ...(description !== undefined && { description }),
+            ...(durationMinutes !== undefined && { durationMinutes }),
+            ...(startTime !== undefined && { startTime: startTime || null }),
+            ...(endTime !== undefined && { endTime: endTime || null }),
+            ...(questions !== undefined && { questions }),
+            ...(assignedTo !== undefined && { assignedTo }),
+            ...(targetYear !== undefined && { targetYear }),
+            ...(isLockdown !== undefined && { isLockdown: !!isLockdown }),
+        };
+        const quiz = await Quiz.findByIdAndUpdate(req.params.id, safeUpdate, {
             new: true,
             runValidators: true,
         }).populate('questions', 'title difficulty category');
-
         if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
         res.status(200).json({ success: true, data: quiz });
     } catch (error) {
         console.error('updateQuiz error:', error);
-        res.status(500).json({ success: false, message: 'Error updating quiz', error: error.message });
+        res.status(500).json({ success: false, message: 'Error updating quiz', error: safeError(error) });
     }
 };
 
@@ -214,6 +246,15 @@ exports.submitQuizAnswer = async (req, res) => {
             return res.status(400).json({ success: false, message: 'questionId, code, and language are required' });
         }
 
+        // Enforce code size limit to prevent DoS
+        if (Buffer.byteLength(code, 'utf8') > MAX_CODE_SIZE_BYTES) {
+            return res.status(400).json({ success: false, message: 'Code exceeds maximum allowed size of 50KB' });
+        }
+
+        if (!mongoose.isValidObjectId(quizId) || !mongoose.isValidObjectId(questionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid ID provided' });
+        }
+
         // Validate quiz is active and within time window
         const quiz = await Quiz.findById(quizId);
         if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
@@ -233,6 +274,11 @@ exports.submitQuizAnswer = async (req, res) => {
         let submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
         if (submission && submission.isComplete) {
             return res.status(403).json({ success: false, message: 'Assignment is already finalized and submitted.' });
+        }
+
+        // Verify student is actually assigned to this quiz
+        if (!isStudentAssignedToQuiz(quiz, req.dualityUser)) {
+            return res.status(403).json({ success: false, message: 'You are not assigned to this quiz' });
         }
 
         // Validate question belongs to quiz
@@ -360,7 +406,7 @@ exports.submitQuizAnswer = async (req, res) => {
         });
     } catch (error) {
         console.error('submitQuizAnswer error:', error);
-        res.status(500).json({ success: false, message: 'Error evaluating answer', error: error.message });
+        res.status(500).json({ success: false, message: 'Error evaluating answer', error: safeError(error) });
     }
 };
 
@@ -379,9 +425,24 @@ exports.saveQuizDraft = async (req, res) => {
             return res.status(400).json({ success: false, message: 'questionId, code, and language are required' });
         }
 
+        if (!mongoose.isValidObjectId(quizId) || !mongoose.isValidObjectId(questionId)) {
+            return res.status(400).json({ success: false, message: 'Invalid ID provided' });
+        }
+
+        if (Buffer.byteLength(code, 'utf8') > MAX_CODE_SIZE_BYTES) {
+            return res.status(400).json({ success: false, message: 'Code exceeds maximum allowed size of 50KB' });
+        }
+
         let submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
         if (submission && submission.isComplete) {
             return res.status(403).json({ success: false, message: 'Assignment is already finalized.' });
+        }
+
+        // Verify the student is assigned to this quiz before allowing a draft
+        const quiz = await getQuiz().findById(quizId);
+        if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
+        if (!isStudentAssignedToQuiz(quiz, req.dualityUser)) {
+            return res.status(403).json({ success: false, message: 'You are not assigned to this quiz' });
         }
 
         if (!submission) {
@@ -412,7 +473,7 @@ exports.saveQuizDraft = async (req, res) => {
         res.status(200).json({ success: true, message: 'Draft saved' });
     } catch (error) {
         console.error('saveQuizDraft error:', error);
-        res.status(500).json({ success: false, message: 'Error saving draft', error: error.message });
+        res.status(500).json({ success: false, message: 'Error saving draft', error: safeError(error) });
     }
 };
 
@@ -459,7 +520,7 @@ exports.getQuizResults = async (req, res) => {
         res.status(200).json({ success: true, data: results });
     } catch (error) {
         console.error('getQuizResults error:', error);
-        res.status(500).json({ success: false, message: 'Error fetching results', error: error.message });
+        res.status(500).json({ success: false, message: 'Error fetching results', error: safeError(error) });
     }
 };
 
@@ -478,6 +539,6 @@ exports.getMyQuizResult = async (req, res) => {
         res.status(200).json({ success: true, data: submission });
     } catch (error) {
         console.error('getMyQuizResult error:', error);
-        res.status(500).json({ success: false, message: 'Error fetching result', error: error.message });
+        res.status(500).json({ success: false, message: 'Error fetching result', error: safeError(error) });
     }
 };

@@ -7,6 +7,7 @@ const { createAdapter } = require('@socket.io/redis-adapter');
 const connection = require('./config/redis');
 const { connectDB } = require('./config/database');
 const { connectExtendedDB } = require('./config/extendedDatabase');
+const { apiLimiter, submissionLimiter } = require('./middleware/rateLimiter');
 
 const {
     initializeSocket,
@@ -149,13 +150,13 @@ app.use('/api/submissions', submissionRoutes);
 app.use('/api/settings', settingsRoutes);
 
 // ── Routes — Duality Extended / Quiz ─────────────────────────────────────────
-app.use('/api/duality/auth', dualityAuthRoutes);
-app.use('/api/duality/allowed-emails', dualityAllowedEmailRoutes);
-app.use('/api/duality/questions', dualityQuestionRoutes);
-app.use('/api/duality/submissions', dualitySubmissionRoutes);
-app.use('/api/duality/settings', dualitySettingsRoutes);
-app.use('/api/duality/quiz', quizRoutes);
-app.use('/api/duality/import', dualityImportRoutes);
+app.use('/api/duality/auth', apiLimiter, dualityAuthRoutes);
+app.use('/api/duality/allowed-emails', apiLimiter, dualityAllowedEmailRoutes);
+app.use('/api/duality/questions', apiLimiter, dualityQuestionRoutes);
+app.use('/api/duality/submissions', submissionLimiter, dualitySubmissionRoutes);
+app.use('/api/duality/settings', apiLimiter, dualitySettingsRoutes);
+app.use('/api/duality/quiz', apiLimiter, quizRoutes);
+app.use('/api/duality/import', apiLimiter, dualityImportRoutes);
 
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
