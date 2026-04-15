@@ -59,14 +59,35 @@ exports.validateQuestion = [
         .withMessage('Difficulty must be Easy, Medium, or Hard'),
     body('category').trim().notEmpty().withMessage('Category is required'),
     body('description').trim().notEmpty().withMessage('Description is required'),
-    body('inputFormat').trim().notEmpty().withMessage('Input format is required'),
-    body('outputFormat').trim().notEmpty().withMessage('Output format is required'),
-    body('constraints').trim().notEmpty().withMessage('Constraints are required'),
+    body('inputFormat').optional().isString().withMessage('Input format must be a string'),
+    body('outputFormat').optional().isString().withMessage('Output format must be a string'),
+    body('constraints')
+        .custom((value) => typeof value === 'string' || Array.isArray(value))
+        .withMessage('Constraints must be a string or an array of strings'),
     body('examples')
         .isArray({ min: 1 })
         .withMessage('At least one example is required'),
     body('examples.*.input').trim().notEmpty().withMessage('Example input is required'),
     body('examples.*.output').trim().notEmpty().withMessage('Example output is required'),
+    body('testCases')
+        .custom((value, { req }) => {
+            // New structure: testCases is array.
+            // Legacy payload support: hiddenTestCases can carry hidden cases while testCases may be number.
+            const hasArrayTestCases = Array.isArray(value);
+            const hasLegacyHiddenCases = Array.isArray(req.body.hiddenTestCases);
+            return hasArrayTestCases || hasLegacyHiddenCases;
+        })
+        .withMessage('At least one hidden test case array is required (testCases or hiddenTestCases)'),
+    body('testCases.*.input')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Test case input is required'),
+    body('testCases.*.output')
+        .optional()
+        .trim()
+        .notEmpty()
+        .withMessage('Test case output is required'),
     body('hiddenTestCases')
         .optional()
         .isArray()
@@ -81,9 +102,6 @@ exports.validateQuestion = [
         .trim()
         .notEmpty()
         .withMessage('Hidden test case output is required'),
-    body('testCases')
-        .isInt({ min: 1 })
-        .withMessage('At least one test case is required'),
     exports.validate,
 ];
 

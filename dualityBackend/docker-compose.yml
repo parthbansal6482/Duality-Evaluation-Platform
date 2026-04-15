@@ -35,6 +35,8 @@ services:
       - .env
     environment:
       - NODE_ENV=production
+      - MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality
+      - MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended
       - MONGODB_URI=mongodb://mongodb:27017/duality
       - MONGODB_EXTENDED_URI=mongodb://mongodb:27017/duality-extended
       - REDIS_URL=redis://redis:6379
@@ -62,6 +64,8 @@ services:
       sh -c "docker image inspect code-executor:latest >/dev/null 2>&1 || docker build -t code-executor:latest /app/docker && node src/worker.js"
     environment:
       - NODE_ENV=production
+      - MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality
+      - MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended
       - MONGODB_URI=mongodb://mongodb:27017/duality
       - MONGODB_EXTENDED_URI=mongodb://mongodb:27017/duality-extended
       - REDIS_URL=redis://redis:6379

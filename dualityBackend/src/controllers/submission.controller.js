@@ -3,6 +3,7 @@ const Question = require('../models/Question');
 const Round = require('../models/Round');
 const Team = require('../models/Team');
 const { broadcastSubmissionUpdate } = require('../socket');
+const { getHiddenCases } = require('../utils/questionTestCases');
 
 /**
  * Submit code for a question
@@ -39,7 +40,7 @@ exports.submitCode = async (req, res) => {
 
 
         // Check if question exists and belongs to round
-        const question = await Question.findById(questionId).select('+hiddenTestCases');
+        const question = await Question.findById(questionId).select('+testCases +hiddenTestCases');
         if (!question) {
             return res.status(404).json({
                 success: false,
@@ -54,6 +55,8 @@ exports.submitCode = async (req, res) => {
             });
         }
 
+        const hiddenCases = getHiddenCases(question);
+
         // Create submission with pending status
         const submission = await Submission.create({
             team: teamId,
@@ -62,7 +65,7 @@ exports.submitCode = async (req, res) => {
             code,
             language,
             status: 'pending',
-            totalTestCases: (question.examples?.length || 0) + (question.hiddenTestCases?.length || 0),
+            totalTestCases: (question.examples?.length || 0) + hiddenCases.length,
         });
 
         res.status(201).json({

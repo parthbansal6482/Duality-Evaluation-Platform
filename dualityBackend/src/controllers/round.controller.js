@@ -2,6 +2,7 @@ const Round = require('../models/Round');
 const Question = require('../models/Question');
 const Submission = require('../models/Submission');
 const Team = require('../models/Team');
+const { getVisibleCases, getAllCases } = require('../utils/questionTestCases');
 
 // ... existing admin functions ...
 
@@ -53,7 +54,7 @@ const getRoundQuestions = async (req, res) => {
         console.log('Team ID:', req.team?._id);
 
         const round = await Round.findById(req.params.id)
-            .populate('questions', '-createdBy -createdAt -updatedAt -hiddenTestCases')
+            .populate('questions', '-createdBy -createdAt -updatedAt -testCases -hiddenTestCases')
             .select('name duration status startTime endTime questions');
 
         console.log('Round found:', round ? 'Yes' : 'No');
@@ -215,7 +216,7 @@ const runCode = async (req, res) => {
         }
 
         // Check if question exists and belongs to this round
-        const question = await Question.findById(questionId).select('+hiddenTestCases');
+        const question = await Question.findById(questionId).select('+testCases +hiddenTestCases');
         if (!question) {
             return res.status(404).json({
                 success: false,
@@ -233,10 +234,7 @@ const runCode = async (req, res) => {
         // Run code against sample test cases (examples only, not hidden test cases)
         const { runTestCases } = require('../services/execution.service');
 
-        const testCases = question.examples.map(example => ({
-            input: example.input,
-            expectedOutput: example.output,
-        }));
+        const testCases = getVisibleCases(question);
 
         const driverCode = question.driverCode ? question.driverCode[language] : '';
         const result = await runTestCases(code, language, testCases, driverCode);
@@ -325,7 +323,7 @@ const submitSolution = async (req, res) => {
         }
 
         // Check if question exists and belongs to this round
-        const question = await Question.findById(questionId).select('+hiddenTestCases');
+        const question = await Question.findById(questionId).select('+testCases +hiddenTestCases');
         if (!question) {
             return res.status(404).json({
                 success: false,
@@ -340,19 +338,8 @@ const submitSolution = async (req, res) => {
             });
         }
 
-        // Prepare test cases - combine examples and hidden test cases
-        const visibleTestCases = question.examples.map(example => ({
-            input: example.input,
-            expectedOutput: example.output,
-        }));
-
-        const hiddenTestCases = (question.hiddenTestCases || []).map(testCase => ({
-            input: testCase.input,
-            expectedOutput: testCase.output,
-        }));
-
-        // Combine all test cases for evaluation
-        const testCases = [...visibleTestCases, ...hiddenTestCases];
+        // Combine visible + hidden cases (supports both new and legacy docs).
+        const testCases = getAllCases(question);
 
         // Run test cases synchronously
         const driverCode = question.driverCode ? question.driverCode[language] : '';
@@ -485,18 +472,7 @@ async function runCodeAsync(submissionId, code, language, question, teamId) {
 
     try {
         // Prepare test cases - combine examples and hidden test cases
-        const visibleTestCases = question.examples.map(example => ({
-            input: example.input,
-            expectedOutput: example.output,
-        }));
-
-        const hiddenTestCases = (question.hiddenTestCases || []).map(testCase => ({
-            input: testCase.input,
-            expectedOutput: testCase.output,
-        }));
-
-        // Combine all test cases for evaluation
-        const testCases = [...visibleTestCases, ...hiddenTestCases];
+        const testCases = getAllCases(question);
 
         // Run test cases
         const driverCode = question.driverCode ? question.driverCode[language] : '';
@@ -1053,4 +1029,3 @@ module.exports = {
     exitRound,
     completeRound,
 };
-

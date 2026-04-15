@@ -1,5 +1,43 @@
 const Question = require('../models/Question');
 
+const normalizeQuestionPayload = (payload = {}) => {
+    const normalized = { ...payload };
+
+    // Accept both string and string[] constraints from clients.
+    if (typeof normalized.constraints === 'string') {
+        normalized.constraints = normalized.constraints
+            .split('\n')
+            .map((c) => c.trim())
+            .filter(Boolean);
+    }
+
+    // Legacy compatibility: map hiddenTestCases -> testCases for old competition UI payloads.
+    if (!Array.isArray(normalized.testCases) && Array.isArray(normalized.hiddenTestCases)) {
+        normalized.testCases = normalized.hiddenTestCases;
+    }
+
+    // Legacy compatibility: map boilerplateCode -> boilerplate.
+    if (!normalized.boilerplate && normalized.boilerplateCode) {
+        normalized.boilerplate = normalized.boilerplateCode;
+    }
+
+    return normalized;
+};
+
+const serializeCompetitionQuestion = (questionDoc) => {
+    const q = questionDoc.toObject ? questionDoc.toObject() : { ...questionDoc };
+    const hidden = Array.isArray(q.testCases) ? q.testCases : [];
+
+    return {
+        ...q,
+        // Keep legacy response fields used by existing competition dashboard/UI.
+        constraints: Array.isArray(q.constraints) ? q.constraints.join('\n') : q.constraints,
+        hiddenTestCases: hidden,
+        boilerplateCode: q.boilerplate || {},
+        testCases: (q.examples?.length || 0) + hidden.length,
+    };
+};
+
 /**
  * @desc    Create a new question
  * @route   POST /api/questions
@@ -8,7 +46,7 @@ const Question = require('../models/Question');
 const createQuestion = async (req, res) => {
     try {
         const questionData = {
-            ...req.body,
+            ...normalizeQuestionPayload(req.body),
             createdBy: req.admin._id,
         };
 
@@ -16,7 +54,7 @@ const createQuestion = async (req, res) => {
 
         res.status(201).json({
             success: true,
-            data: question,
+            data: serializeCompetitionQuestion(question),
         });
     } catch (error) {
         // Handle duplicate title error
@@ -66,14 +104,14 @@ const getAllQuestions = async (req, res) => {
             ];
         }
 
-        const questions = await Question.find(filter)
+        const questions = await Question.find(filter).select('+testCases')
             .populate('createdBy', 'name email')
             .sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,
             count: questions.length,
-            data: questions,
+            data: questions.map(serializeCompetitionQuestion),
         });
     } catch (error) {
         console.error('Error fetching questions:', error);
@@ -92,7 +130,7 @@ const getAllQuestions = async (req, res) => {
  */
 const getQuestionById = async (req, res) => {
     try {
-        const question = await Question.findById(req.params.id)
+        const question = await Question.findById(req.params.id).select('+testCases')
             .populate('createdBy', 'name email');
 
         if (!question) {
@@ -104,7 +142,7 @@ const getQuestionById = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: question,
+            data: serializeCompetitionQuestion(question),
         });
     } catch (error) {
         console.error('Error fetching question:', error);
@@ -125,12 +163,12 @@ const updateQuestion = async (req, res) => {
     try {
         const question = await Question.findByIdAndUpdate(
             req.params.id,
-            req.body,
+            normalizeQuestionPayload(req.body),
             {
                 new: true,
                 runValidators: true,
             }
-        );
+        ).select('+testCases');
 
         if (!question) {
             return res.status(404).json({
@@ -141,7 +179,7 @@ const updateQuestion = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: question,
+            data: serializeCompetitionQuestion(question),
         });
     } catch (error) {
         // Handle duplicate title error

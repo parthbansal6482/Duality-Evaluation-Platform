@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { getCompetitionMongoUri } = require('./dbUris');
 
 /**
  * Initialize connection to MongoDB
@@ -7,12 +8,13 @@ const mongoose = require('mongoose');
  */
 const connectDB = async () => {
     try {
-        if (!process.env.MONGODB_URI) {
-            throw new Error('MONGODB_URI is not set');
+        const mongoUri = getCompetitionMongoUri();
+        if (!mongoUri) {
+            throw new Error('MONGODB_COMPETITION_URI (or MONGODB_URI) is not set');
         }
 
         // mongoose.connect sets the global/default connection used by mongoose.model()
-        const conn = await mongoose.connect(process.env.MONGODB_URI);
+        const conn = await mongoose.connect(mongoUri);
 
         console.log(`Competition/Core MongoDB Connected: ${conn.connection.host}`);
         return conn.connection;

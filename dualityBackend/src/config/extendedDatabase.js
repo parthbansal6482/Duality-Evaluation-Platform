@@ -1,14 +1,16 @@
 const mongoose = require('mongoose');
+const { getDualityMongoUri } = require('./dbUris');
 
 let extendedConnection = null;
 
 const connectExtendedDB = async () => {
     try {
-        if (!process.env.MONGODB_EXTENDED_URI) {
-            throw new Error('MONGODB_EXTENDED_URI is not set');
+        const dualityUri = getDualityMongoUri();
+        if (!dualityUri) {
+            throw new Error('MONGODB_DUALITY_URI (or MONGODB_EXTENDED_URI) is not set');
         }
 
-        extendedConnection = mongoose.createConnection(process.env.MONGODB_EXTENDED_URI);
+        extendedConnection = mongoose.createConnection(dualityUri);
         await extendedConnection.asPromise();
 
         console.log(`Duality Extended MongoDB Connected: ${extendedConnection.host}`);

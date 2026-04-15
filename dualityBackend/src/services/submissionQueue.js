@@ -3,6 +3,7 @@ const Question = require('../models/Question');
 const Round = require('../models/Round');
 const Team = require('../models/Team');
 const { runTestCases } = require('./execution.service');
+const { getAllCases } = require('../utils/questionTestCases');
 const {
     broadcastLeaderboardUpdate,
     broadcastTeamStatsUpdate,
@@ -76,25 +77,15 @@ class SubmissionQueue {
 
         try {
             // Fetch necessary data
-            const question = await Question.findById(submission.question).select('+hiddenTestCases');
+            const question = await Question.findById(submission.question).select('+testCases +hiddenTestCases');
             const round = await Round.findById(submission.round);
 
             if (!question || !round) {
                 throw new Error('Question or Round not found for submission');
             }
 
-            // Prepare test cases
-            const visibleTestCases = question.examples.map(example => ({
-                input: example.input,
-                expectedOutput: example.output,
-            }));
-
-            const hiddenTestCases = (question.hiddenTestCases || []).map(testCase => ({
-                input: testCase.input,
-                expectedOutput: testCase.output,
-            }));
-
-            const testCases = [...visibleTestCases, ...hiddenTestCases];
+            // Prepare test cases (supports both new and legacy question docs).
+            const testCases = getAllCases(question);
 
             // Run test cases via Docker
             const result = await runTestCases(submission.code, submission.language, testCases);

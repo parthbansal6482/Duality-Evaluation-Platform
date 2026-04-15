@@ -14,6 +14,17 @@ const exampleSchema = new mongoose.Schema({
     },
 }, { _id: false });
 
+const testCaseSchema = new mongoose.Schema({
+    input: {
+        type: String,
+        required: true,
+    },
+    output: {
+        type: String,
+        required: true,
+    },
+}, { _id: false });
+
 const questionSchema = new mongoose.Schema({
     title: {
         type: String,
@@ -39,17 +50,19 @@ const questionSchema = new mongoose.Schema({
         type: String,
         required: [true, 'Description is required'],
     },
+    // Optional in competition mode; retained for UI compatibility.
     inputFormat: {
         type: String,
-        required: [true, 'Input format is required'],
+        default: '',
     },
+    // Optional in competition mode; retained for UI compatibility.
     outputFormat: {
         type: String,
-        required: [true, 'Output format is required'],
+        default: '',
     },
     constraints: {
-        type: String,
-        required: [true, 'Constraints are required'],
+        type: [String],
+        default: [],
     },
     examples: {
         type: [exampleSchema],
@@ -61,17 +74,12 @@ const questionSchema = new mongoose.Schema({
             message: 'At least one example is required',
         },
     },
-    hiddenTestCases: {
-        type: [exampleSchema],
+    testCases: {
+        type: [testCaseSchema],
         default: [],
         select: false, // Hidden from team-facing queries
     },
-    testCases: {
-        type: Number,
-        required: [true, 'Number of test cases is required'],
-        min: [1, 'At least one test case is required'],
-    },
-    boilerplateCode: {
+    boilerplate: {
         python: {
             type: String,
             default: '# Write your solution here\n',
@@ -114,10 +122,20 @@ const questionSchema = new mongoose.Schema({
     },
 }, {
     timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
 });
 
 // Pre-save hook to set points based on difficulty if not provided
 questionSchema.pre('save', function (next) {
+    // Compatibility: accept legacy constraints string payloads.
+    if (typeof this.constraints === 'string') {
+        this.constraints = this.constraints
+            .split('\n')
+            .map((c) => c.trim())
+            .filter(Boolean);
+    }
+
     if (!this.points || this.points === 100) {
         if (this.difficulty === 'Easy') this.points = 100;
         else if (this.difficulty === 'Medium') this.points = 150;
@@ -125,5 +143,22 @@ questionSchema.pre('save', function (next) {
     }
     next();
 });
+
+// Backward-compatible aliases for competition UI/routes expecting old names.
+questionSchema.virtual('hiddenTestCases')
+    .get(function () {
+        return this.testCases || [];
+    })
+    .set(function (value) {
+        this.testCases = value || [];
+    });
+
+questionSchema.virtual('boilerplateCode')
+    .get(function () {
+        return this.boilerplate || {};
+    })
+    .set(function (value) {
+        this.boilerplate = value || {};
+    });
 
 module.exports = mongoose.model('Question', questionSchema);

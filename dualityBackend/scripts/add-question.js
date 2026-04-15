@@ -230,52 +230,23 @@ async function run() {
 
         for (const data of questionsToAdd) {
             try {
-                // Build payloads per schema.
-                // Competition Question model expects:
-                // - inputFormat/outputFormat: string (required)
-                // - constraints: string
-                // - testCases: number
-                // - hiddenTestCases: array of {input, output}
-                // - boilerplateCode
-                //
-                // Duality Question model expects:
-                // - constraints: string[]
-                // - testCases: array of {input, output}
-                // - boilerplate
-                const isCompetition = mode === 'competition';
-
-                const questionToCreate = isCompetition
-                    ? {
-                        title: data.title,
-                        difficulty: data.difficulty,
-                        category: data.category,
-                        description: data.description,
-                        inputFormat: data.inputFormat,
-                        outputFormat: data.outputFormat,
-                        constraints: typeof data.constraints === 'string'
-                            ? data.constraints
-                            : (data.constraints || []).join('\n'),
-                        examples: data.examples,
-                        hiddenTestCases: data.testCases,
-                        testCases: Array.isArray(data.testCases) ? data.testCases.length : Number(data.testCases) || 1,
-                        boilerplateCode: data.boilerplateCode || data.boilerplate,
-                        driverCode: data.driverCode,
-                        createdBy: user._id
-                    }
-                    : {
-                        title: data.title,
-                        difficulty: data.difficulty,
-                        category: data.category,
-                        description: data.description,
-                        constraints: typeof data.constraints === 'string'
-                            ? data.constraints.split('\n').filter(c => c.trim() !== '')
-                            : data.constraints,
-                        examples: data.examples,
-                        testCases: data.testCases,
-                        boilerplate: data.boilerplateCode || data.boilerplate,
-                        driverCode: data.driverCode,
-                        createdBy: user._id
-                    };
+                // Unified schema for both competition and duality DBs.
+                const questionToCreate = {
+                    title: data.title,
+                    difficulty: data.difficulty,
+                    category: data.category,
+                    description: data.description,
+                    inputFormat: data.inputFormat || '',
+                    outputFormat: data.outputFormat || '',
+                    constraints: typeof data.constraints === 'string'
+                        ? data.constraints.split('\n').filter(c => c.trim() !== '')
+                        : data.constraints,
+                    examples: data.examples,
+                    testCases: data.testCases,
+                    boilerplate: data.boilerplateCode || data.boilerplate,
+                    driverCode: data.driverCode,
+                    createdBy: user._id
+                };
 
                 const created = await Question.create(questionToCreate);
                 console.log(`\n✅ Added "${created.title}" to ${mode} platform.`);

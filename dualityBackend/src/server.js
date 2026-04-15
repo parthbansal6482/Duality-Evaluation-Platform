@@ -7,6 +7,8 @@ const { createAdapter } = require('@socket.io/redis-adapter');
 const connection = require('./config/redis');
 const { connectDB } = require('./config/database');
 const { connectExtendedDB } = require('./config/extendedDatabase');
+const { assertMongoSeparation } = require('./config/dbUris');
+const { assertStrictCollectionBoundaries } = require('./config/dbBoundaries');
 const { apiLimiter, submissionLimiter } = require('./middleware/rateLimiter');
 
 const {
@@ -187,14 +189,20 @@ const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
     try {
+        // Prevent accidental cross-mode data mixing.
+        assertMongoSeparation();
+
         // Initialize connections to both databases
-        await connectDB();
+        const competitionConn = await connectDB();
         
-        // Only connect to extended DB if URI is provided
-        if (process.env.MONGODB_EXTENDED_URI) {
-            await connectExtendedDB();
-        } else {
-            console.log('[API] MONGODB_EXTENDED_URI not found, skipping extended DB connection');
+        // Connect duality DB (required for Assignments/Quiz features).
+        const dualityConn = await connectExtendedDB();
+
+        // Enforce hard collection boundaries by default.
+        // Set STRICT_DB_BOUNDARIES=false only during migration/cleanup windows.
+        const strictBoundaries = String(process.env.STRICT_DB_BOUNDARIES || 'true').toLowerCase() !== 'false';
+        if (strictBoundaries) {
+            await assertStrictCollectionBoundaries(competitionConn, dualityConn);
         }
 
         server.listen(PORT, () => {
