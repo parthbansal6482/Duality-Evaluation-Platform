@@ -8,6 +8,8 @@ const connection = require('./config/redis');
 const { connectDB } = require('./config/database');
 const { connectExtendedDB } = require('./config/extendedDatabase');
 const { assertMongoSeparation } = require('./config/dbUris');
+const path = require('path');
+const fs = require('fs');
 const { assertStrictCollectionBoundaries } = require('./config/dbBoundaries');
 const { apiLimiter } = require('./middleware/rateLimiter');
 
@@ -53,6 +55,7 @@ const allowedOrigins = [
     process.env.CLIENT_URL,
     'http://localhost:3000',
     'http://localhost:5173',
+    'http://localhost:5001',
 ].filter(Boolean);
 
 const corsOptions = {
@@ -136,6 +139,25 @@ io.on('connection', async (socket) => {
     });
 });
 
+// ── Request Logger & Static Files (Production) ──────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+    const publicPath = path.join(process.cwd(), 'public');
+    console.log(`[Server] Static file path: ${publicPath}`);
+    
+    // Request logger for debugging deployment build
+    app.use((req, res, next) => {
+        // Headers required for Google Login Popups with COOP/COEP
+        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+        
+        if (!req.path.startsWith('/api')) {
+            console.log(`[Web] ${req.method} ${req.path}`);
+        }
+        next();
+    });
+
+    app.use(express.static(publicPath));
+}
+
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.options('*', cors(corsOptions));
 app.use(express.json());
@@ -160,6 +182,11 @@ app.use('/api/duality/settings', apiLimiter, dualitySettingsRoutes);
 app.use('/api/duality/quiz', apiLimiter, quizRoutes);
 app.use('/api/duality/import', apiLimiter, dualityImportRoutes);
 
+// ── Base API Health Check ───────────────────────────────────────────────────
+app.get('/api', (req, res) => {
+    res.status(200).json({ success: true, message: 'Duality API is online' });
+});
+
 // ── Health check ─────────────────────────────────────────────────────────────
 app.get('/api/health', (req, res) => {
     res.status(200).json({
@@ -179,10 +206,28 @@ app.use((err, req, res, next) => {
     });
 });
 
-// ── 404 ───────────────────────────────────────────────────────────────────────
-app.use((req, res) => {
-    res.status(404).json({ success: false, message: 'Route not found' });
-});
+// ── SPA Fallback (Production) ────────────────────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+    const publicPath = path.join(process.cwd(), 'public');
+    app.get('*', (req, res, next) => {
+        if (req.path.startsWith('/api')) {
+            return res.status(404).json({ success: false, message: 'API route not found' });
+        }
+        res.sendFile(path.join(publicPath, 'index.html'), (err) => {
+            if (err) {
+                if (!req.path.includes('.')) {
+                    console.error('[Server] SPA Fallback Error:', err.message);
+                }
+                res.status(500).json({ success: false, message: 'Frontend build not found' });
+            }
+        });
+    });
+} else {
+    // 404 (Development/API only mode)
+    app.use((req, res) => {
+        res.status(404).json({ success: false, message: 'Route not found' });
+    });
+}
 
 // ── Start server ──────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 5000;

@@ -2,7 +2,11 @@ const Docker = require('dockerode');
 const fs = require('fs').promises;
 const path = require('path');
 
-const docker = new Docker();
+const dockerConfig = process.env.DOCKER_HOST 
+    ? { host: 'host.docker.internal', port: 2375 } // Fallback for Mac TCP if enabled
+    : { socketPath: '/var/run/docker.sock' };
+
+const docker = new Docker(dockerConfig);
 
 // Language configurations
 const LANGUAGE_CONFIG = {

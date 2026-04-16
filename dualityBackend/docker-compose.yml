@@ -3,8 +3,8 @@ services:
   mongodb:
     image: mongo:latest
     restart: unless-stopped
-    expose:
-      - "27017"
+    ports:
+      - "27017:27017"
     volumes:
       - duality_mongo_data:/data/db
     healthcheck:
@@ -12,29 +12,40 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 2. Redis coordination hub
   redis:
     image: redis:alpine
     restart: unless-stopped
-    expose:
-      - "6379"
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
       timeout: 5s
       retries: 5
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
-  # 3. Dedicated API Server
+  # 3. Dedicated API & Frontend Server
   api-server:
     build: 
-      context: .
-      dockerfile: docker/Dockerfile.server
+      context: ..
+      dockerfile: Dockerfile
     restart: unless-stopped
     env_file:
       - .env
     environment:
       - NODE_ENV=production
+      - TZ=Asia/Kolkata
       - MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality
       - MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended
       - MONGODB_URI=mongodb://mongodb:27017/duality
@@ -49,21 +60,34 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # 4. Isolated Execution Worker
   execution-worker:
     build:
       context: .
       dockerfile: docker/Dockerfile.worker
+    user: root # Forced root ensures it can manage sibling containers on any OS
     restart: unless-stopped
     env_file:
       - .env
     volumes:
-      - /var/run/docker.sock:/var/run/docker.sock # Required to run sibling Docker containers
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock # UNCOMMENT THIS ON LINUX SERVER
     command: >
       sh -c "docker image inspect code-executor:latest >/dev/null 2>&1 || docker build -t code-executor:latest /app/docker && node src/worker.js"
     environment:
       - NODE_ENV=production
+      - TZ=Asia/Kolkata
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality
       - MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended
       - MONGODB_URI=mongodb://mongodb:27017/duality
@@ -75,6 +99,11 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   duality_mongo_data:
