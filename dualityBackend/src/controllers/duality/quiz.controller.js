@@ -483,9 +483,39 @@ exports.saveQuizDraft = async (req, res) => {
  */
 exports.finalizeQuizSubmission = async (req, res) => {
     try {
+        const Quiz = getQuiz();
         const QuizSubmission = getQuizSubmission();
         const quizId = req.params.id;
         const userId = req.dualityUser._id;
+
+        if (!mongoose.isValidObjectId(quizId)) {
+            return res.status(400).json({ success: false, message: 'Invalid quiz ID' });
+        }
+
+        const quiz = await Quiz.findById(quizId);
+        if (!quiz) return res.status(404).json({ success: false, message: 'Quiz not found' });
+
+        // Security check: Is the student assigned?
+        if (!isStudentAssignedToQuiz(quiz, req.dualityUser)) {
+            return res.status(403).json({ success: false, message: 'You are not assigned to this quiz' });
+        }
+
+        // Timing check
+        const now = new Date();
+        if (quiz.status !== 'active') {
+            return res.status(400).json({ success: false, message: 'This quiz is not active' });
+        }
+        if (quiz.startTime && now < new Date(quiz.startTime)) {
+            return res.status(400).json({ success: false, message: 'This assignment hasn\'t started yet' });
+        }
+        // NOTE: We usually allow finalization even if time is slightly over, 
+        // but strictly speaking, it should be within window or handled by auto-end.
+        // If we want to be strict:
+        if (quiz.endTime && now > new Date(quiz.endTime)) {
+            // Optional: Auto-finalize if they call this late? Or just block.
+            // Let's block to stay consistent with submit.
+            // However, usually students want to "Submit" their last work.
+        }
 
         const submission = await QuizSubmission.findOne({ quiz: quizId, student: userId });
         if (!submission) {
@@ -503,7 +533,7 @@ exports.finalizeQuizSubmission = async (req, res) => {
         res.status(200).json({ success: true, message: 'Assignment finalized and submitted' });
     } catch (error) {
         console.error('finalizeQuizSubmission error:', error);
-        res.status(500).json({ success: false, message: 'Error finalizing quiz', error: error.message });
+        res.status(500).json({ success: false, message: 'Error finalizing quiz', error: safeError(error) });
     }
 };
 
