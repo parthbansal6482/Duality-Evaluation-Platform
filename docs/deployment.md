@@ -194,11 +194,74 @@ All services should show `Up` or `(healthy)`.
 
 | Resource | URL |
 | :--- | :--- |
-| **Web App** | `http://YOUR_SERVER_IP:5001` |
-| **API Base** | `http://YOUR_SERVER_IP:5001/api` |
+| **Web App** | `http://dualityacm.bmu.edu.in` (with Nginx) or `http://YOUR_SERVER_IP:5001` |
+| **API Base** | `http://dualityacm.bmu.edu.in/api` |
 | **MongoDB** (Compass) | `mongodb://dualityAdmin:YOUR_PASSWORD@YOUR_SERVER_IP:27017/duality?authSource=admin` |
 
 ---
+
+## 🌍 Step 9: Deploy on a Domain (`dualityacm.bmu.edu.in`)
+
+If your IT department has pointed `dualityacm.bmu.edu.in` to your server's IP, follow these steps to make the app accessible at the domain (no port number needed).
+
+### 9.1 — Install Nginx
+
+```bash
+sudo apt install nginx -y
+```
+
+### 9.2 — Create Nginx Config
+
+```bash
+sudo nano /etc/nginx/sites-available/dualityacm
+```
+
+Paste this:
+
+```nginx
+server {
+    listen 80;
+    server_name dualityacm.bmu.edu.in;
+
+    location / {
+        proxy_pass http://localhost:5001;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
+```
+
+Enable it:
+```bash
+sudo ln -s /etc/nginx/sites-available/dualityacm /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### 9.3 — Update Your Config Files
+
+Make the following changes **before rebuilding**:
+
+**`dualityBackend/.env`**:
+```env
+CLIENT_URL=http://dualityacm.bmu.edu.in
+ALLOWED_ORIGINS=http://dualityacm.bmu.edu.in
+```
+
+**`dualityFrontend/.env`** — no change needed (`VITE_API_URL=/api` already works with any domain).
+
+**Google Cloud Console** → Authorized JavaScript Origins → Add:
+```
+http://dualityacm.bmu.edu.in
+```
+
+### 9.4 — Rebuild
+
+```bash
+docker compose up -d --build
+```
 
 ## 🔄 Updating the Platform
 
