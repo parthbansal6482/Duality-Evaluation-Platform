@@ -1,0 +1,10 @@
+.git
+.gitignore
+node_modules
+**/node_modules
+dualityFrontend/build
+dualityFrontend/dist
+mongo-backup
+.DS_Store
+.env
+**/ .env

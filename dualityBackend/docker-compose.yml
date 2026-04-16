@@ -7,6 +7,9 @@ services:
       - "27017:27017"
     volumes:
       - duality_mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=${MONGO_ROOT_USERNAME}
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
     healthcheck:
       test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
       interval: 10s
@@ -46,10 +49,10 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=Asia/Kolkata
-      - MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality
-      - MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended
-      - MONGODB_URI=mongodb://mongodb:27017/duality
-      - MONGODB_EXTENDED_URI=mongodb://mongodb:27017/duality-extended
+      - MONGODB_COMPETITION_URI=${MONGODB_COMPETITION_URI}
+      - MONGODB_DUALITY_URI=${MONGODB_DUALITY_URI}
+      - MONGODB_URI=${MONGODB_COMPETITION_URI}
+      - MONGODB_EXTENDED_URI=${MONGODB_DUALITY_URI}
       - REDIS_URL=redis://redis:6379
       - START_WORKER=false # API Server stays lightweight, only handles IO
       - PORT=5001
@@ -88,10 +91,10 @@ services:
       - NODE_ENV=production
       - TZ=Asia/Kolkata
       - DOCKER_HOST=unix:///var/run/docker.sock
-      - MONGODB_COMPETITION_URI=mongodb://mongodb:27017/duality
-      - MONGODB_DUALITY_URI=mongodb://mongodb:27017/duality-extended
-      - MONGODB_URI=mongodb://mongodb:27017/duality
-      - MONGODB_EXTENDED_URI=mongodb://mongodb:27017/duality-extended
+      - MONGODB_COMPETITION_URI=${MONGODB_COMPETITION_URI}
+      - MONGODB_DUALITY_URI=${MONGODB_DUALITY_URI}
+      - MONGODB_URI=${MONGODB_COMPETITION_URI}
+      - MONGODB_EXTENDED_URI=${MONGODB_DUALITY_URI}
       - REDIS_URL=redis://redis:6379
       - QUEUE_CONCURRENCY=8 # Dedicated worker handles high compute load
     depends_on:
