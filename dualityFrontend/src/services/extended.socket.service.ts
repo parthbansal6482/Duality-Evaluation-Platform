@@ -108,7 +108,7 @@ class ExtendedSocketService {
         console.log('[ExtSocket] Connecting to:', SOCKET_URL);
 
         this.socket = io(SOCKET_URL, {
-            transports: ['websocket'],
+            transports: ['polling', 'websocket'],
             reconnection: true,
             reconnectionDelay: 1000,
             reconnectionAttempts: 10,
