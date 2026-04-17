@@ -29,7 +29,8 @@ import {
   getDualityUsers,
   getDualitySettings,
   updateDualitySettings,
-  importDualityStudents
+  importDualityStudents,
+  toggleUserAdminStatus
 } from '../../services/duality.service';
 import dualitySocketService from '../../services/dualitySocket.service';
 
@@ -62,11 +63,12 @@ interface Student {
   lastActiveDate?: string | null;
   rank: number;
   year?: string;
+  isSuperAdmin?: boolean;
 }
 
 
 
-type ActiveTab = 'questions' | 'students' | 'leaderboard' | 'settings' | 'assignments';
+type ActiveTab = 'questions' | 'students' | 'users' | 'database' | 'leaderboard' | 'settings' | 'assignments';
 
 const defaultQuestionJSON = `{
   "title": "Two Sum",
@@ -133,6 +135,8 @@ export function AdminDashboard({
   const [jsonInput, setJsonInput] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [isImporting, setIsImporting] = useState(false);
+  const [currentUser, setCurrentUser] = useState<Student | null>(null);
+  const [allUsers, setAllUsers] = useState<Student[]>([]);
 
   // Assignments State
   const [assignments, setAssignments] = useState<any[]>([]);
@@ -179,15 +183,17 @@ export function AdminDashboard({
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      const [questionsRes, studentsRes, settingsRes, quizzesRes] = await Promise.all([
+      const [questionsRes, studentsRes, settingsRes, quizzesRes, meRes] = await Promise.all([
         getDualityQuestions(),
         getDualityUsers(),
         getDualitySettings(),
-        getQuizzes()
+        getQuizzes(),
+        import('../../services/duality.service').then(m => m.dualityGetMe())
       ]);
 
       if (questionsRes.success) setQuestions(questionsRes.data);
       if (studentsRes.success) {
+        setAllUsers(studentsRes.data);
         const studentOnly = studentsRes.data.filter((u: any) => (u.role || 'student') === 'student');
         const studentsWithRank = studentOnly.map((s: any, index: number) => ({
           ...s,
@@ -195,10 +201,14 @@ export function AdminDashboard({
         }));
         setStudents(studentsWithRank);
       }
+      if (quizzesRes.success) setAssignments(quizzesRes.data);
       if (settingsRes.success) {
         setIsPasteEnabled(settingsRes.data.isPasteEnabled);
       }
-      if (quizzesRes.success) setAssignments(quizzesRes.data);
+      if (meRes && meRes.success) {
+        setCurrentUser(meRes.data);
+      }
+
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -635,6 +645,30 @@ export function AdminDashboard({
                   <Settings className="w-4 h-4" />
                   Settings
                 </button>
+                {currentUser?.isSuperAdmin && (
+                  <>
+                    <button
+                      onClick={() => setActiveTab('users')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'users'
+                        ? 'bg-purple-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                        }`}
+                    >
+                      <Shield className="w-4 h-4" />
+                      User Mgmt
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('database')}
+                      className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'database'
+                        ? 'bg-red-600 text-white'
+                        : 'text-gray-400 hover:text-white'
+                        }`}
+                    >
+                      <Code2 className="w-4 h-4" />
+                      Database
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1117,7 +1151,85 @@ export function AdminDashboard({
               </div>
             </div>
           </div>
+        ) : activeTab === 'users' && currentUser?.isSuperAdmin ? (
+          <div className="space-y-6">
+            <div className="mb-6">
+              <h2 className="text-xl font-bold text-white mb-2">User Management</h2>
+              <p className="text-sm text-gray-400">Manage administrator privileges. Only Super Admins can access this section.</p>
+            </div>
+            
+            <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+              <table className="w-full">
+                <thead className="bg-black border-b border-zinc-800">
+                  <tr>
+                    <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">User</th>
+                    <th className="text-left px-6 py-4 text-xs font-medium text-gray-500">Current Role</th>
+                    <th className="text-right px-6 py-4 text-xs font-medium text-gray-500">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allUsers.map((u) => (
+                    <tr key={u.id} className="border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors">
+                      <td className="px-6 py-4">
+                        <div>
+                          <p className="text-white font-medium flex items-center gap-2">
+                            {u.name}
+                            {u.isSuperAdmin && <span className="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-red-500/20 text-red-400 border border-red-500/20">SUPER ADMIN</span>}
+                          </p>
+                          <p className="text-sm text-gray-500">{u.email}</p>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 rounded text-xs font-medium ${u.role === 'admin' ? 'bg-purple-500/20 text-purple-400' : 'bg-zinc-800 text-gray-400'}`}>
+                          {u.role ? u.role.toUpperCase() : 'STUDENT'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        {!u.isSuperAdmin && u.role === 'student' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await toggleUserAdminStatus(u.id, 'admin');
+                                fetchData();
+                              } catch (e: any) { alert(e.response?.data?.message || 'Error occurred'); }
+                            }}
+                            className="bg-white text-black px-4 py-1.5 rounded text-sm font-medium hover:bg-gray-200 transition-colors"
+                          >
+                            Make Admin
+                          </button>
+                        )}
+                        {!u.isSuperAdmin && u.role === 'admin' && (
+                          <button
+                            onClick={async () => {
+                              try {
+                                await toggleUserAdminStatus(u.id, 'student');
+                                fetchData();
+                              } catch (e: any) { alert(e.response?.data?.message || 'Error occurred'); }
+                            }}
+                            className="bg-red-500/10 text-red-500 px-4 py-1.5 rounded text-sm font-medium hover:bg-red-500/20 transition-colors"
+                          >
+                            Remove Admin
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : activeTab === 'database' && currentUser?.isSuperAdmin ? (
+          <div className="h-[calc(100vh-140px)] flex flex-col">
+            <div className="mb-4">
+              <h2 className="text-xl font-bold text-white mb-2">Web Database Manager</h2>
+              <p className="text-sm text-gray-400">Direct, secure access to the MongoDB collections via Mongo Express proxy.</p>
+            </div>
+            <div className="flex-1 bg-white rounded-xl overflow-hidden border border-zinc-800">
+              <iframe src="/api/db-admin" className="w-full h-full" title="Database Portal" />
+            </div>
+          </div>
         ) : (
+
           <>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
               <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">

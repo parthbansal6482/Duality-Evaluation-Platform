@@ -17,6 +17,11 @@ export const getDualityLeaderboard = async () => {
     return res.data;
 };
 
+export const toggleUserAdminStatus = async (userId: string, role: 'admin' | 'student') => {
+    const res = await api.patch(`/duality/auth/users/${userId}/role`, { role });
+    return res.data;
+};
+
 // ========== SETTINGS ==========
 
 export const getDualitySettings = async () => {

@@ -28,6 +28,10 @@ const dualityUserSchema = new mongoose.Schema({
         enum: ['student', 'admin'],
         default: 'student',
     },
+    isSuperAdmin: {
+        type: Boolean,
+        default: false,
+    },
     totalSolved: {
         type: Number,
         default: 0,

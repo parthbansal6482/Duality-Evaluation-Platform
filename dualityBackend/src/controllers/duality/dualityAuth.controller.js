@@ -51,6 +51,7 @@ const mapUserWithPoints = (user, rank) => ({
     streak: user.streak,
     joinDate: user.joinDate,
     lastActiveDate: user.lastActiveDate,
+    isSuperAdmin: user.isSuperAdmin,
     rank,
 });
 
@@ -125,12 +126,15 @@ exports.googleLogin = async (req, res) => {
             } else {
                 // Create new user
                 const detectedYear = detectYearFromEmail(email);
+                const isSuperAdmin = email.toLowerCase() === 'parth.bansal.24cse@bmu.edu.in';
+                
                 user = await DualityUser.create({
                     googleId,
                     name,
                     email: email.toLowerCase(),
                     avatar: picture || '',
-                    role: 'student', // Default role
+                    role: isSuperAdmin ? 'admin' : 'student',
+                    isSuperAdmin,
                     year: detectedYear || (masterEntry ? masterEntry.year : null),
                     section: masterEntry ? masterEntry.section : null,
                 });
@@ -140,6 +144,14 @@ exports.googleLogin = async (req, res) => {
             const DualityAllowedEmail = getDualityAllowedEmail();
             const masterEntry = await DualityAllowedEmail.findOne({ email: email.toLowerCase() });
             
+            
+            // Check for Super Admin status update on existing user
+            const isSuperAdminEnv = email.toLowerCase() === 'parth.bansal.24cse@bmu.edu.in';
+            if (isSuperAdminEnv && !user.isSuperAdmin) {
+                user.isSuperAdmin = true;
+                user.role = 'admin';
+            }
+
             if (masterEntry) {
                 user.year = masterEntry.year || user.year;
                 user.section = masterEntry.section || user.section;
@@ -207,6 +219,7 @@ exports.googleLogin = async (req, res) => {
                     rank,
                     streak: user.streak,
                     joinDate: user.joinDate,
+                    isSuperAdmin: user.isSuperAdmin,
                 },
             },
         });
@@ -254,6 +267,7 @@ exports.getMe = async (req, res) => {
                 streak: user.streak,
                 joinDate: user.joinDate,
                 lastActiveDate: user.lastActiveDate,
+                isSuperAdmin: user.isSuperAdmin,
             },
         });
     } catch (error) {
@@ -388,6 +402,58 @@ exports.uploadStudents = async (req, res) => {
         res.status(500).json({
             success: false,
             message: 'Error processing Excel file',
+            error: error.message,
+        });
+    }
+};
+/**
+ * Toggle Admin Status
+ * PATCH /api/duality/auth/users/:id/role
+ * Super Admin only
+ */
+exports.toggleAdminStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { role } = req.body;
+
+        if (!['admin', 'student'].includes(role)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid role provided',
+            });
+        }
+
+        const DualityUser = getDualityUser();
+        const user = await DualityUser.findById(id);
+
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                message: 'User not found',
+            });
+        }
+
+        // Prevent modifying other super admins (though there's usually only one)
+        if (user.isSuperAdmin && req.dualityUser.email !== 'parth.bansal.24cse@bmu.edu.in') {
+            return res.status(403).json({
+                success: false,
+                message: 'Cannot modify a Super Admin',
+            });
+        }
+
+        user.role = role;
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: `User role updated to ${role}`,
+            data: user,
+        });
+    } catch (error) {
+        console.error('Toggle admin status error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error updating user role',
             error: error.message,
         });
     }

@@ -12,6 +12,8 @@ const path = require('path');
 const fs = require('fs');
 const { assertStrictCollectionBoundaries } = require('./config/dbBoundaries');
 const { apiLimiter } = require('./middleware/rateLimiter');
+const { createProxyMiddleware } = require('http-proxy-middleware');
+const { protect, adminOnly } = require('./middleware/dualityAuth');
 
 const {
     initializeSocket,
@@ -157,6 +159,33 @@ if (process.env.NODE_ENV === 'production') {
 
     app.use(express.static(publicPath));
 }
+
+// ── DB Admin Proxy (Must come BEFORE express.json) ───────────────────────────
+// Only Super Admins can access the database manager.
+const superAdminOnly = (req, res, next) => {
+    if (!req.dualityUser || !req.dualityUser.isSuperAdmin) {
+        return res.status(403).json({
+            success: false,
+            message: 'Super Admin access required for Database Portal',
+        });
+    }
+    next();
+};
+
+app.use(
+    '/api/db-admin',
+    protect,
+    adminOnly,
+    superAdminOnly,
+    createProxyMiddleware({
+        target: 'http://mongo-express:8081',
+        changeOrigin: true,
+        pathRewrite: {
+            '^/api/db-admin': '', // remove base path when forwarding to Mongo Express
+        },
+        ws: true, // proxy websockets if needed
+    })
+);
 
 // ── Middleware ────────────────────────────────────────────────────────────────
 app.options('*', cors(corsOptions));
