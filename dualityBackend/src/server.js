@@ -83,16 +83,10 @@ app.use(cors(corsOptions));
 // ── Socket.IO with Redis adapter ─────────────────────────────────────────────
 const io = new Server(server, {
     cors: {
-        origin: "*", // RELAXED FOR DIAGNOSIS
+        origin: allowedOrigins,
         methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
         credentials: true
     }
-});
-
-// Diagnostic Engine Logging
-io.engine.on("connection_error", (err) => {
-    console.error(`[SocketEngine] Handshake Error: ${err.code} - ${err.message}`);
-    console.error(`[SocketEngine] Request context: ${JSON.stringify(err.context)}`);
 });
 
 const pubClient = connection;
