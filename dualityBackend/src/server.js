@@ -56,6 +56,8 @@ const server = http.createServer(app);
 const allowedOrigins = [
     ...(process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()) : []),
     process.env.CLIENT_URL,
+    'https://dualityacm.bmu.edu.in',
+    'http://dualityacm.bmu.edu.in',
     'http://localhost:3000',
     'http://localhost:5173',
     'http://localhost:5001',
@@ -79,7 +81,13 @@ const corsOptions = {
 app.use(cors(corsOptions));
 
 // ── Socket.IO with Redis adapter ─────────────────────────────────────────────
-const io = new Server(server, { cors: corsOptions });
+const io = new Server(server, {
+    cors: {
+        origin: allowedOrigins,
+        methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+        credentials: true
+    }
+});
 
 const pubClient = connection;
 const subClient = connection.duplicate();
