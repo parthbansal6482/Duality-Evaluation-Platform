@@ -62,6 +62,7 @@ services:
     build: 
       context: ..
       dockerfile: Dockerfile
+    user: root # Required for Docker socket access when using /api/duality/submissions/run
     restart: unless-stopped
     env_file:
       - .env
@@ -70,7 +71,6 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=Asia/Kolkata
-      - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_COMPETITION_URI=${MONGODB_COMPETITION_URI}
       - MONGODB_DUALITY_URI=${MONGODB_DUALITY_URI}
       - MONGODB_URI=${MONGODB_COMPETITION_URI}
@@ -112,7 +112,6 @@ services:
     environment:
       - NODE_ENV=production
       - TZ=Asia/Kolkata
-      - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_COMPETITION_URI=${MONGODB_COMPETITION_URI}
       - MONGODB_DUALITY_URI=${MONGODB_DUALITY_URI}
       - MONGODB_URI=${MONGODB_COMPETITION_URI}
