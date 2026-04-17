@@ -65,9 +65,12 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    volumes:
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
     environment:
       - NODE_ENV=production
       - TZ=Asia/Kolkata
+      - DOCKER_HOST=unix:///var/run/docker.sock
       - MONGODB_COMPETITION_URI=${MONGODB_COMPETITION_URI}
       - MONGODB_DUALITY_URI=${MONGODB_DUALITY_URI}
       - MONGODB_URI=${MONGODB_COMPETITION_URI}
@@ -103,7 +106,7 @@ services:
     env_file:
       - .env
     volumes:
-      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock # UNCOMMENT THIS ON LINUX SERVER
+      - ${DOCKER_SOCK:-/var/run/docker.sock}:/var/run/docker.sock
     command: >
       sh -c "docker image inspect code-executor:latest >/dev/null 2>&1 || docker build -t code-executor:latest /app/docker && node src/worker.js"
     environment:

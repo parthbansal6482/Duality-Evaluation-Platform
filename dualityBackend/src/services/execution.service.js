@@ -2,9 +2,39 @@ const Docker = require('dockerode');
 const fs = require('fs').promises;
 const path = require('path');
 
-const dockerConfig = process.env.DOCKER_HOST 
-    ? { host: 'host.docker.internal', port: 2375 } // Fallback for Mac TCP if enabled
-    : { socketPath: '/var/run/docker.sock' };
+const resolveDockerConfig = () => {
+    const dockerHost = process.env.DOCKER_HOST;
+
+    // Default: local Docker Unix socket
+    if (!dockerHost) {
+        return { socketPath: '/var/run/docker.sock' };
+    }
+
+    // Explicit Unix socket, e.g. unix:///var/run/docker.sock
+    if (dockerHost.startsWith('unix://')) {
+        return { socketPath: dockerHost.replace('unix://', '') };
+    }
+
+    // TCP endpoint, e.g. tcp://127.0.0.1:2375
+    if (dockerHost.startsWith('tcp://') || dockerHost.startsWith('http://') || dockerHost.startsWith('https://')) {
+        try {
+            const parsed = new URL(dockerHost.replace(/^tcp:\/\//, 'http://'));
+            return {
+                host: parsed.hostname,
+                port: Number(parsed.port) || 2375,
+                protocol: parsed.protocol === 'https:' ? 'https' : 'http',
+            };
+        } catch (error) {
+            console.warn(`[ExecutionService] Invalid DOCKER_HOST "${dockerHost}", falling back to unix socket`);
+            return { socketPath: '/var/run/docker.sock' };
+        }
+    }
+
+    console.warn(`[ExecutionService] Unsupported DOCKER_HOST "${dockerHost}", falling back to unix socket`);
+    return { socketPath: '/var/run/docker.sock' };
+};
+
+const dockerConfig = resolveDockerConfig();
 
 const docker = new Docker(dockerConfig);
 
