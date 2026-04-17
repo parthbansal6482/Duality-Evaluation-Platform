@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const xlsx = require('xlsx');
 const getDualityUser = require('../../models/duality/DualityUser');
 const getDualityAllowedEmail = require('../../models/duality/DualityAllowedEmail');
+const { getDualityBootstrapRole } = require('../../config/dualityBootstrapAdmins');
 
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const POINTS_BY_DIFFICULTY = {
@@ -126,15 +127,15 @@ exports.googleLogin = async (req, res) => {
             } else {
                 // Create new user
                 const detectedYear = detectYearFromEmail(email);
-                const isSuperAdmin = email.toLowerCase() === 'parth.bansal.24cse@bmu.edu.in';
+                const bootstrapRole = getDualityBootstrapRole(email);
                 
                 user = await DualityUser.create({
                     googleId,
                     name,
                     email: email.toLowerCase(),
                     avatar: picture || '',
-                    role: isSuperAdmin ? 'admin' : 'student',
-                    isSuperAdmin,
+                    role: bootstrapRole.isAdmin ? 'admin' : 'student',
+                    isSuperAdmin: bootstrapRole.isSuperAdmin,
                     year: detectedYear || (masterEntry ? masterEntry.year : null),
                     section: masterEntry ? masterEntry.section : null,
                 });
@@ -146,10 +147,12 @@ exports.googleLogin = async (req, res) => {
             
             
             // Check for Super Admin status update on existing user
-            const isSuperAdminEnv = email.toLowerCase() === 'parth.bansal.24cse@bmu.edu.in';
-            if (isSuperAdminEnv && !user.isSuperAdmin) {
-                user.isSuperAdmin = true;
+            const bootstrapRole = getDualityBootstrapRole(email);
+            if (bootstrapRole.isAdmin && user.role !== 'admin') {
                 user.role = 'admin';
+            }
+            if (bootstrapRole.isSuperAdmin && !user.isSuperAdmin) {
+                user.isSuperAdmin = true;
             }
 
             if (masterEntry) {

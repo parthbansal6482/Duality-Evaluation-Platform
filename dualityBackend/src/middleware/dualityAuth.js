@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const getDualityUser = require('../models/duality/DualityUser');
+const { getDualityBootstrapRole } = require('../config/dualityBootstrapAdmins');
 
 // Protect routes - verify JWT token for Duality users
 exports.protect = async (req, res, next) => {
@@ -39,10 +40,18 @@ exports.protect = async (req, res, next) => {
             });
         }
 
-        // Dynamic Super Admin Escalation
-        if (user.email === 'parth.bansal.24cse@bmu.edu.in' && (!user.isSuperAdmin || user.role !== 'admin')) {
-            user.isSuperAdmin = true;
-            user.role = 'admin';
+        // Dynamic bootstrap admin escalation
+        const bootstrapRole = getDualityBootstrapRole(user.email);
+        if (
+            (bootstrapRole.isAdmin && user.role !== 'admin')
+            || (bootstrapRole.isSuperAdmin && !user.isSuperAdmin)
+        ) {
+            if (bootstrapRole.isAdmin) {
+                user.role = 'admin';
+            }
+            if (bootstrapRole.isSuperAdmin) {
+                user.isSuperAdmin = true;
+            }
             await user.save();
         }
 

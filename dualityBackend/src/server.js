@@ -8,6 +8,7 @@ const connection = require('./config/redis');
 const { connectDB } = require('./config/database');
 const { connectExtendedDB } = require('./config/extendedDatabase');
 const { assertMongoSeparation } = require('./config/dbUris');
+const { ensureCompetitionBootstrapAdmins } = require('./utils/ensureCompetitionBootstrapAdmins');
 const path = require('path');
 const fs = require('fs');
 const { assertStrictCollectionBoundaries } = require('./config/dbBoundaries');
@@ -268,6 +269,7 @@ const startServer = async () => {
 
         // Initialize connections to both databases
         const competitionConn = await connectDB();
+        await ensureCompetitionBootstrapAdmins();
         
         // Connect duality DB (required for Assignments/Quiz features).
         const dualityConn = await connectExtendedDB();
