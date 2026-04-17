@@ -10,7 +10,9 @@ import {
   X,
   Settings,
   Code2,
-  CheckSquare
+  CheckSquare,
+  Coins,
+  Save
 } from 'lucide-react';
 import { QuestionsSection } from './dashboard/QuestionsSection';
 import { RoundsSection } from './dashboard/RoundsSection';
@@ -314,6 +316,9 @@ function OverviewSection({ onNavigate }: { onNavigate: (section: Section) => voi
 function SettingsSection() {
   const [isPasteEnabled, setIsPasteEnabled] = useState(true);
   const [autoApproveTeams, setAutoApproveTeams] = useState(false);
+  const [sabotageCost, setSabotageCost] = useState<number>(250);
+  const [shieldCost, setShieldCost] = useState<number>(200);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     import('../services/settings.service').then(({ getSettings }) => {
@@ -321,10 +326,31 @@ function SettingsSection() {
         if (res.success && res.data) {
           setIsPasteEnabled(res.data.isPasteEnabled !== false);
           setAutoApproveTeams(!!res.data.autoApproveTeams);
+          if (res.data.sabotageCost !== undefined) setSabotageCost(res.data.sabotageCost);
+          if (res.data.shieldCost !== undefined) setShieldCost(res.data.shieldCost);
         }
       }).catch(console.error);
     });
   }, []);
+
+  const handleEconomyUpdate = async () => {
+    try {
+      setIsSaving(true);
+      const { updateSettings } = await import('../services/settings.service');
+      const res = await updateSettings({ sabotageCost, shieldCost });
+      
+      if (res.success) {
+        alert('Economy settings updated successfully');
+      } else {
+        alert('Failed to update economy settings');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error updating economy settings');
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   const updateSetting = async (field: 'isPasteEnabled' | 'autoApproveTeams', value: boolean) => {
     try {
@@ -397,6 +423,70 @@ function SettingsSection() {
               {autoApproveTeams ? 'Mode: AUTO' : 'Mode: MANUAL'}
             </button>
           </div>
+        </div>
+      </div>
+
+      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6">
+        <div className="border-b border-zinc-800 pb-4 mb-6">
+          <h2 className="text-xl font-bold text-white">Token Economy</h2>
+          <p className="text-sm text-gray-400 mt-1">Configure physical point costs for contest tokens.</p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-red-500/10 rounded-lg flex items-center justify-center">
+                <Coins className="w-4 h-4 text-red-500" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Sabotage Token Cost</h3>
+            </div>
+            <div className="relative group">
+              <input
+                type="number"
+                value={sabotageCost}
+                onChange={(e) => setSabotageCost(parseInt(e.target.value) || 0)}
+                className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white transition-all group-hover:border-zinc-700"
+                min="0"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">Points</span>
+            </div>
+            <p className="text-xs text-gray-500">Default: 250. Cost to purchase a single sabotage token.</p>
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-blue-500/10 rounded-lg flex items-center justify-center">
+                <Coins className="w-4 h-4 text-blue-500" />
+              </div>
+              <h3 className="text-lg font-bold text-white">Shield Token Cost</h3>
+            </div>
+            <div className="relative group">
+              <input
+                type="number"
+                value={shieldCost}
+                onChange={(e) => setShieldCost(parseInt(e.target.value) || 0)}
+                className="w-full bg-black border border-zinc-800 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-white transition-all group-hover:border-zinc-700"
+                min="0"
+              />
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">Points</span>
+            </div>
+            <p className="text-xs text-gray-500">Default: 200. Cost to purchase a single shield token.</p>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-4 border-t border-zinc-800">
+          <button
+            onClick={handleEconomyUpdate}
+            disabled={isSaving}
+            className={`flex items-center gap-3 px-8 py-3 rounded-xl font-bold transition-all ${
+              isSaving
+                ? 'bg-zinc-800 text-gray-500 cursor-not-allowed'
+                : 'bg-white text-black hover:bg-zinc-200'
+            }`}
+          >
+            <Save className="w-5 h-5" />
+            {isSaving ? 'Saving...' : 'Save Economy Settings'}
+          </button>
         </div>
       </div>
     </div>

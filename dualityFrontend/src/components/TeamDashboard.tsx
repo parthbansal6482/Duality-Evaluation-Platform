@@ -31,6 +31,7 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [economySettings, setEconomySettings] = useState({ sabotageCost: 250, shieldCost: 200 });
   const normalize = (value?: string) => (value || '').toLowerCase().trim();
 
   useEffect(() => {
@@ -40,6 +41,7 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
     // Initial fetch
     fetchTeamData();
     fetchLeaderboard();
+    fetchEconomySettings();
 
     // Subscribe to real-time team stats updates
     const unsubscribeStats = socketService.onTeamStatsUpdate((data) => {
@@ -130,6 +132,21 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
       setLeaderboardData(data);
     } catch (err: any) {
       console.error('Error fetching leaderboard:', err);
+    }
+  };
+
+  const fetchEconomySettings = async () => {
+    try {
+      const { getSettings } = await import('../services/settings.service');
+      const res = await getSettings();
+      if (res.success && res.data) {
+        setEconomySettings({
+          sabotageCost: res.data.sabotageCost ?? 250,
+          shieldCost: res.data.shieldCost ?? 200
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching economy settings:', err);
     }
   };
 
@@ -268,6 +285,8 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
           <TokenShop
             currentPoints={teamData.points}
             currentTokens={teamData.tokens}
+            sabotageCost={economySettings.sabotageCost}
+            shieldCost={economySettings.shieldCost}
             onPurchase={async (type, cost) => {
               try {
                 const updatedStats = await purchaseToken(type as 'sabotage' | 'shield', cost);

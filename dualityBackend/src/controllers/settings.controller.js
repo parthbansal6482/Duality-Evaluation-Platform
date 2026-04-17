@@ -17,7 +17,9 @@ exports.getSettings = async (req, res) => {
             success: true,
             data: {
                 isPasteEnabled: settings.isPasteEnabled,
-                autoApproveTeams: settings.autoApproveTeams
+                autoApproveTeams: settings.autoApproveTeams,
+                sabotageCost: settings.sabotageCost,
+                shieldCost: settings.shieldCost
             }
         });
     } catch (error) {
@@ -35,7 +37,7 @@ exports.getSettings = async (req, res) => {
  */
 exports.updateSettings = async (req, res) => {
     try {
-        const { isPasteEnabled, autoApproveTeams } = req.body;
+        const { isPasteEnabled, autoApproveTeams, sabotageCost, shieldCost } = req.body;
         
         let settings = await Settings.findOne();
         
@@ -50,6 +52,14 @@ exports.updateSettings = async (req, res) => {
         if (typeof autoApproveTeams === 'boolean') {
             settings.autoApproveTeams = autoApproveTeams;
         }
+        
+        if (typeof sabotageCost === 'number' && sabotageCost >= 0) {
+            settings.sabotageCost = sabotageCost;
+        }
+        
+        if (typeof shieldCost === 'number' && shieldCost >= 0) {
+            settings.shieldCost = shieldCost;
+        }
 
         await settings.save();
 
@@ -58,7 +68,9 @@ exports.updateSettings = async (req, res) => {
             message: 'Settings updated successfully',
             data: {
                 isPasteEnabled: settings.isPasteEnabled,
-                autoApproveTeams: settings.autoApproveTeams
+                autoApproveTeams: settings.autoApproveTeams,
+                sabotageCost: settings.sabotageCost,
+                shieldCost: settings.shieldCost
             }
         });
     } catch (error) {

@@ -351,10 +351,11 @@ exports.purchaseToken = async (req, res) => {
             });
         }
 
-        // Fixed prices
+        // Get dynamic prices from settings
+        const settings = await Settings.findOne();
         const TOKEN_PRICES = {
-            sabotage: 250,
-            shield: 200,
+            sabotage: settings?.sabotageCost ?? 250,
+            shield: settings?.shieldCost ?? 200,
         };
 
         const actualCost = TOKEN_PRICES[tokenType];

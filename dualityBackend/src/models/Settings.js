@@ -8,6 +8,14 @@ const settingsSchema = new mongoose.Schema({
     autoApproveTeams: {
         type: Boolean,
         default: false
+    },
+    sabotageCost: {
+        type: Number,
+        default: 250
+    },
+    shieldCost: {
+        type: Number,
+        default: 200
     }
 }, { timestamps: true });
 

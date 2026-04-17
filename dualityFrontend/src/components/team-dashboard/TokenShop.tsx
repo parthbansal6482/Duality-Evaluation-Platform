@@ -7,6 +7,8 @@ interface TokenShopProps {
     sabotage: number;
     shield: number;
   };
+  sabotageCost: number;
+  shieldCost: number;
   onPurchase: (type: string, cost: number) => void;
 }
 
@@ -22,7 +24,7 @@ interface ShopItem {
   details: string[];
 }
 
-export function TokenShop({ currentPoints, currentTokens, onPurchase }: TokenShopProps) {
+export function TokenShop({ currentPoints, currentTokens, sabotageCost, shieldCost, onPurchase }: TokenShopProps) {
   const [selectedItem, setSelectedItem] = useState<ShopItem | null>(null);
 
   const shopItems: ShopItem[] = [
@@ -31,7 +33,7 @@ export function TokenShop({ currentPoints, currentTokens, onPurchase }: TokenSho
       type: 'sabotage',
       name: 'Sabotage Token',
       description: 'Disrupt your opponents with various sabotage tactics',
-      cost: 250,
+      cost: sabotageCost,
       icon: Zap,
       iconColor: 'text-red-500',
       bgColor: 'bg-red-500/10 border-red-500/30',
@@ -48,7 +50,7 @@ export function TokenShop({ currentPoints, currentTokens, onPurchase }: TokenSho
       type: 'shield',
       name: 'Shield Token',
       description: 'Protect your team from sabotage attacks',
-      cost: 200,
+      cost: shieldCost,
       icon: ShieldIcon,
       iconColor: 'text-blue-500',
       bgColor: 'bg-blue-500/10 border-blue-500/30',
