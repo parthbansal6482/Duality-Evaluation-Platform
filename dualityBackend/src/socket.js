@@ -144,13 +144,14 @@ const broadcastTeamStatsUpdate = async (teamId) => {
         };
 
         const eventName = 'team:stats-update';
+        const roomName = `team:${teamId}`;
         if (io) {
-            io.emit(eventName, statsUpdate);
+            io.to(roomName).emit(eventName, statsUpdate);
         } else {
             const redisEmitter = initializeEmitter();
-            redisEmitter.emit(eventName, statsUpdate);
+            redisEmitter.to(roomName).emit(eventName, statsUpdate);
         }
-        console.log(`[Socket] Team stats update broadcasted: ${team.teamName}`);
+        console.log(`[Socket] Team stats update broadcasted to ${roomName}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting team stats update:', error);
     }
@@ -166,6 +167,7 @@ const broadcastSubmissionUpdate = async (teamId, submission) => {
         if (!team) return;
 
         const eventName = 'submission:update';
+        const roomName = `team:${teamId}`;
         const payload = {
             teamId: team._id,
             teamName: team.teamName,
@@ -176,12 +178,12 @@ const broadcastSubmissionUpdate = async (teamId, submission) => {
         };
 
         if (io) {
-            io.emit(eventName, payload);
+            io.to(roomName).emit(eventName, payload);
         } else {
             const redisEmitter = initializeEmitter();
-            redisEmitter.emit(eventName, payload);
+            redisEmitter.to(roomName).emit(eventName, payload);
         }
-        console.log(`[Socket] Submission update broadcasted: ${team.teamName}`);
+        console.log(`[Socket] Submission update broadcasted to ${roomName}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting submission update:', error);
     }
@@ -214,20 +216,17 @@ const broadcastDisqualificationUpdate = async (teamId, isDisqualified, roundId) 
 
         const payload = { teamId: team._id, teamName: team.teamName, isDisqualified, roundId };
 
-        // Direct push to active team socket for instant UX.
-        const activeSocketId = activeTeams.get(team._id.toString());
-        if (activeSocketId && io) {
-            io.to(activeSocketId).emit('team:disqualification-update', payload);
-        }
-
+        const roomName = `team:${teamId}`;
         // Also broadcast globally for admin dashboards/other listeners.
         if (io) {
-            io.emit('team:disqualification-update', payload);
+            io.to(roomName).emit('team:disqualification-update', payload);
+            io.emit('team:disqualification-update', payload); // Admin needs global
         } else {
             const redisEmitter = initializeEmitter();
+            redisEmitter.to(roomName).emit('team:disqualification-update', payload);
             redisEmitter.emit('team:disqualification-update', payload);
         }
-        console.log(`[Socket] Disqualification update: ${team.teamName} -> ${isDisqualified}`);
+        console.log(`[Socket] Disqualification update broadcasted to ${roomName}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting disqualification update:', error);
     }
@@ -243,6 +242,7 @@ const broadcastSabotageAttack = async (targetTeamId, attackerTeamName, sabotageT
         if (!targetTeam) return;
 
         const eventName = 'team:sabotage';
+        const roomName = `team:${targetTeamId}`;
         const payload = {
             targetTeamName: targetTeam.teamName,
             attackerTeamName,
@@ -252,12 +252,14 @@ const broadcastSabotageAttack = async (targetTeamId, attackerTeamName, sabotageT
         };
 
         if (io) {
-            io.emit(eventName, payload);
+            io.to(roomName).emit(eventName, payload);
+            io.emit(eventName, payload); // Admin notification
         } else {
             const redisEmitter = initializeEmitter();
+            redisEmitter.to(roomName).emit(eventName, payload);
             redisEmitter.emit(eventName, payload);
         }
-        console.log(`[Socket] Sabotage: ${sabotageType} from ${attackerTeamName} to ${targetTeam.teamName}`);
+        console.log(`[Socket] Sabotage broadcasted to ${roomName}`);
         await broadcastTeamStatsUpdate(targetTeamId);
     } catch (error) {
         console.error('[Socket] Error broadcasting sabotage attack:', error);
@@ -318,19 +320,17 @@ const removeDualityUser = (socketId) => {
 const broadcastDualitySubmissionUpdate = (userId, data) => {
     const eventName = 'duality:submission:update';
 
+    const roomName = `user:${userId}`;
     if (io) {
-        const socketId = activeDualityUsers.get(userId.toString());
-        if (socketId) {
-            io.to(socketId).emit(eventName, data);
-        }
-        // Also broadcast globally (cross-instance via Redis adapter)
-        io.emit(eventName, data);
+        io.to(roomName).emit(eventName, data);
+        io.emit(eventName, data); // Admin visibility
     } else {
         const redisEmitter = initializeEmitter();
+        redisEmitter.to(roomName).emit(eventName, data);
         redisEmitter.emit(eventName, data);
     }
 
-    console.log(`[Socket] Duality submission update broadcasted for user: ${userId}`);
+    console.log(`[Socket] Duality submission update broadcasted to ${roomName}`);
 };
 
 /**

@@ -110,7 +110,10 @@ io.on('connection', async (socket) => {
         try {
             const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET);
             if (decoded && decoded.type === 'team') {
-                addActiveTeam(decoded.id, socket.id);
+                const teamId = decoded.id;
+                addActiveTeam(teamId, socket.id);
+                socket.join(`team:${teamId}`);
+                console.log(`[Socket] Team authenticated and joined room: team:${teamId}`);
             }
         } catch (error) {
             console.error('[Socket] Team auth error:', error);
@@ -128,7 +131,10 @@ io.on('connection', async (socket) => {
         try {
             const decoded = require('jsonwebtoken').verify(token, process.env.JWT_SECRET);
             if (decoded && decoded.type === 'duality') {
-                addDualityUser(decoded.id, socket.id);
+                const userId = decoded.id;
+                addDualityUser(userId, socket.id);
+                socket.join(`user:${userId}`);
+                console.log(`[Socket] Duality user authenticated and joined room: user:${userId}`);
             }
         } catch (error) {
             console.error('[Socket] Duality auth error:', error);
@@ -282,6 +288,8 @@ const startServer = async () => {
         }
 
         server.listen(PORT, () => {
+            console.log('--- DUALITY PLATFORM: BUILD SUCCESSFUL ---');
+            console.log('[System] Build: v2.5.0-distributed-sync (2026-04-17)');
             console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
             console.log(`WebSocket server ready on port ${PORT}`);
 
