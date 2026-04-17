@@ -23,7 +23,7 @@ WORKDIR /app
 
 # 1. Copy backend package files and install production deps first
 COPY dualityBackend/package*.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev && npm cache clean --force
 
 # 2. Copy backend source code
 COPY dualityBackend ./
