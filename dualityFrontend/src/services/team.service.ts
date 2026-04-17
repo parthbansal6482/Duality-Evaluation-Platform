@@ -17,6 +17,7 @@ export interface TeamLoginData {
 }
 
 export interface TeamStats {
+    id?: string;
     teamName: string;
     members: TeamMember[];
     points: number;

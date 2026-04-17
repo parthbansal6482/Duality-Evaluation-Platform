@@ -11,6 +11,7 @@ const getSocketUrl = () => {
 const SOCKET_URL = getSocketUrl();
 
 export interface TeamStatsUpdate {
+    teamId?: string;
     teamName: string;
     points: number;
     score: number;
@@ -32,6 +33,7 @@ export interface TeamStatsUpdate {
 }
 
 export interface SubmissionUpdate {
+    teamId?: string;
     teamName: string;
     questionId: string;
     status: string;
@@ -49,6 +51,7 @@ export interface CheatingAlert {
 }
 
 export interface DisqualificationUpdate {
+    teamId?: string;
     teamName: string;
     isDisqualified: boolean;
     roundId: string;

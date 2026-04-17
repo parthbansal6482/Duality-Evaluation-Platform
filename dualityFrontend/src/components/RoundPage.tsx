@@ -72,6 +72,7 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [teamName, setTeamName] = useState('Your Team');
+  const [teamId, setTeamId] = useState<string | null>(null);
   const [teamPoints, setTeamPoints] = useState(0);
   const [teamScore, setTeamScore] = useState(0);
   const [allTeams, setAllTeams] = useState<TeamTarget[]>([]);
@@ -83,6 +84,7 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
   const [tacticalMessage, setTacticalMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
   const [isCheatingWarningOpen, setIsCheatingWarningOpen] = useState(false);
   const violationRef = useRef<{ startTime: number | null }>({ startTime: null });
+  const normalize = (value?: string) => (value || '').toLowerCase().trim();
 
   // Fetch round data and team stats
   useEffect(() => {
@@ -123,6 +125,7 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
 
         // Fetch team stats to get points, tokens, and current tactical state
         const teamStats = await getTeamStats();
+        setTeamId(teamStats.id || null);
         setTeamName(teamStats.teamName);
         setTeamPoints(teamStats.points);
         setTeamScore(teamStats.score);
@@ -189,7 +192,11 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
 
     // Subscribe to team stats updates
     const unsubscribeStats = socketService.onTeamStatsUpdate((data: TeamStatsUpdate) => {
-      if (data.teamName.toLowerCase().trim() === teamName.toLowerCase().trim()) {
+      const isCurrentTeam =
+        (data.teamId && teamId && data.teamId === teamId)
+        || normalize(data.teamName) === normalize(teamName);
+
+      if (isCurrentTeam) {
         console.log('Real-time team stats update in RoundPage:', data);
         setSabotageTokens(data.tokens.sabotage);
         setShieldTokens(data.tokens.shield);
@@ -213,7 +220,11 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
 
     // Subscribe to submission updates
     const unsubscribeSubmission = socketService.onSubmissionUpdate((data: SubmissionUpdate) => {
-      if (data.teamName.toLowerCase().trim() === teamName.toLowerCase().trim()) {
+      const isCurrentTeam =
+        (data.teamId && teamId && data.teamId === teamId)
+        || normalize(data.teamName) === normalize(teamName);
+
+      if (isCurrentTeam) {
         console.log('Real-time submission update:', data.questionId, data.status);
         // Update question status based on submission
         setQuestions((prev) => prev.map((q) =>
@@ -226,7 +237,11 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
 
     // Subscribe to disqualification updates
     const unsubscribeDisqualification = socketService.onDisqualificationUpdate((data: DisqualificationUpdate) => {
-      if (data.teamName.toLowerCase().trim() === teamName.toLowerCase().trim() && data.roundId === roundId) {
+      const isCurrentTeam =
+        (data.teamId && teamId && data.teamId === teamId)
+        || normalize(data.teamName) === normalize(teamName);
+
+      if (isCurrentTeam && data.roundId === roundId) {
         setIsDisqualified(data.isDisqualified);
         if (data.isDisqualified) {
           // Exit full screen if disqualified
@@ -239,7 +254,7 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
 
     // Subscribe to sabotage attacks
     const unsubscribeSabotage = socketService.onSabotageAttack((data: any) => {
-      if (data.targetTeamName.toLowerCase().trim() === teamName.toLowerCase().trim()) {
+      if (normalize(data.targetTeamName) === normalize(teamName)) {
         console.log('You are being sabotaged!', data.type, 'from', data.attackerTeamName);
 
         // Use the endTime from the server if available, otherwise fallback to 1 minute
@@ -288,7 +303,7 @@ export function RoundPage({ roundId, onExitRound }: RoundPageProps) {
       unsubscribeRound();
       unsubscribeLeaderboard();
     };
-  }, [teamName, roundId]);
+  }, [teamName, teamId, roundId]);
 
   // Real-time timer countdown
   useEffect(() => {

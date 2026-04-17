@@ -6,7 +6,8 @@ import {
   Round as APIRound,
 } from '../../services/round.service';
 import { getAllTeams, toggleDisqualification } from '../../services/team.service';
-import { socketService, CheatingAlert } from '../../services/extended.socket.service';
+import { socketService } from '../../services/extended.socket.service';
+import { CheatingAlertsList } from './CheatingAlertsList';
 
 interface Round {
   _id: string;
@@ -354,6 +355,7 @@ export function RoundControlSection() {
 
       {/* Sidebar: Violations and Team Status */}
       <div className="space-y-6">
+        <CheatingAlertsList />
 
         {/* Team Disqualification Status */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">

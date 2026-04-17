@@ -31,6 +31,7 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
   const [leaderboardData, setLeaderboardData] = useState<LeaderboardTeam[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const normalize = (value?: string) => (value || '').toLowerCase().trim();
 
   useEffect(() => {
     // Connect to WebSocket
@@ -43,7 +44,12 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
     // Subscribe to real-time team stats updates
     const unsubscribeStats = socketService.onTeamStatsUpdate((data) => {
       // Only update if this is the current team
-      if (teamData && data.teamName.toLowerCase().trim() === teamData.teamName.toLowerCase().trim()) {
+      const isCurrentTeam =
+        !!teamData &&
+        ((data.teamId && teamData.id && data.teamId === teamData.id) ||
+          normalize(data.teamName) === normalize(teamData.teamName));
+
+      if (isCurrentTeam) {
         console.log('Real-time team stats update received for current team');
         setTeamData((prev) => prev ? {
           ...prev,
@@ -62,7 +68,12 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
 
     // Subscribe to disqualification updates
     const unsubscribeDisqualification = socketService.onDisqualificationUpdate((data) => {
-      if (teamData && data.teamName === teamData.teamName) {
+      const isCurrentTeam =
+        !!teamData &&
+        ((data.teamId && teamData.id && data.teamId === teamData.id) ||
+          normalize(data.teamName) === normalize(teamData.teamName));
+
+      if (isCurrentTeam) {
         console.log('Real-time disqualification update received:', data.isDisqualified);
         setTeamData(prev => {
           if (!prev) return null;
@@ -83,7 +94,7 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
 
     // Subscribe to sabotage attacks
     const unsubscribeSabotage = socketService.onSabotageAttack((data: any) => {
-      if (teamData && data.targetTeamName === teamData.teamName) {
+      if (teamData && normalize(data.targetTeamName) === normalize(teamData.teamName)) {
         console.log('Real-time sabotage received in Dashboard!', data.type);
         // We could show a toast here, or just let team stats update handle it
         // The team stats update should also be triggered from the backend for the target
@@ -98,7 +109,7 @@ export function TeamDashboard({ onEnterRound, onLogout }: TeamDashboardProps) {
       unsubscribeLeaderboard();
       unsubscribeSabotage();
     };
-  }, [teamData?.teamName]);
+  }, [teamData?.id, teamData?.teamName]);
 
   const fetchTeamData = async () => {
     try {

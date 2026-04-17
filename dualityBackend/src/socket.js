@@ -132,6 +132,7 @@ const broadcastTeamStatsUpdate = async (teamId) => {
         const rank = allTeams.findIndex(t => t._id.toString() === teamId.toString()) + 1;
 
         const statsUpdate = {
+            teamId: team._id,
             teamName: team.teamName,
             points: team.points || 0,
             score: team.score || 0,
@@ -163,6 +164,7 @@ const broadcastSubmissionUpdate = async (teamId, submission) => {
         if (!team) return;
 
         io.emit('submission:update', {
+            teamId: team._id,
             teamName: team.teamName,
             questionId: submission.question,
             status: submission.status,
@@ -195,7 +197,16 @@ const broadcastDisqualificationUpdate = async (teamId, isDisqualified, roundId) 
         const team = await Team.findById(teamId).select('teamName');
         if (!team) return;
 
-        io.emit('team:disqualification-update', { teamName: team.teamName, isDisqualified, roundId });
+        const payload = { teamId: team._id, teamName: team.teamName, isDisqualified, roundId };
+
+        // Direct push to active team socket for instant UX.
+        const activeSocketId = activeTeams.get(team._id.toString());
+        if (activeSocketId) {
+            io.to(activeSocketId).emit('team:disqualification-update', payload);
+        }
+
+        // Also broadcast globally for admin dashboards/other listeners.
+        io.emit('team:disqualification-update', payload);
         console.log(`[Socket] Disqualification update: ${team.teamName} -> ${isDisqualified}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting disqualification update:', error);

@@ -214,6 +214,7 @@ exports.getTeamStats = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
+                id: team._id,
                 name: team.teamName,
                 teamName: team.teamName,
                 members: team.members,
