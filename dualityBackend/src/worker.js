@@ -21,7 +21,9 @@ const startWorker = async () => {
         const { initializeEmitter } = require('./socket');
         initializeEmitter();
 
-        // 3. Start the Submission Worker
+        // 3. Start the Submission Workers
+        const submissionQueue = require('./services/submissionQueue');
+        submissionQueue.start();
         dualitySubmissionQueue.start();
 
         console.log('[Worker] Execution system is online and listening for jobs...');

@@ -119,8 +119,6 @@ const broadcastLeaderboardUpdate = async () => {
  * Broadcast team stats update to a specific team
  */
 const broadcastTeamStatsUpdate = async (teamId) => {
-    if (!io) return;
-
     try {
         const Team = require('./models/Team');
         const team = await Team.findById(teamId)
@@ -145,7 +143,13 @@ const broadcastTeamStatsUpdate = async (teamId) => {
             activeSabotages: team.activeSabotages || [],
         };
 
-        io.emit('team:stats-update', statsUpdate);
+        const eventName = 'team:stats-update';
+        if (io) {
+            io.emit(eventName, statsUpdate);
+        } else {
+            const redisEmitter = initializeEmitter();
+            redisEmitter.emit(eventName, statsUpdate);
+        }
         console.log(`[Socket] Team stats update broadcasted: ${team.teamName}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting team stats update:', error);
@@ -156,21 +160,27 @@ const broadcastTeamStatsUpdate = async (teamId) => {
  * Broadcast submission update to a specific team
  */
 const broadcastSubmissionUpdate = async (teamId, submission) => {
-    if (!io) return;
-
     try {
         const Team = require('./models/Team');
         const team = await Team.findById(teamId).select('teamName');
         if (!team) return;
 
-        io.emit('submission:update', {
+        const eventName = 'submission:update';
+        const payload = {
             teamId: team._id,
             teamName: team.teamName,
             questionId: submission.question,
             status: submission.status,
             points: submission.points || 0,
             timestamp: submission.submittedAt,
-        });
+        };
+
+        if (io) {
+            io.emit(eventName, payload);
+        } else {
+            const redisEmitter = initializeEmitter();
+            redisEmitter.emit(eventName, payload);
+        }
         console.log(`[Socket] Submission update broadcasted: ${team.teamName}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting submission update:', error);
@@ -181,8 +191,15 @@ const broadcastSubmissionUpdate = async (teamId, submission) => {
  * Broadcast cheating violation to all connected admins
  */
 const broadcastCheatingViolation = (teamName, roundName, violationType, action, duration) => {
-    if (!io) return;
-    io.emit('cheating:alert', { teamName, roundName, violationType, action, duration, timestamp: new Date() });
+    const eventName = 'cheating:alert';
+    const payload = { teamName, roundName, violationType, action, duration, timestamp: new Date() };
+
+    if (io) {
+        io.emit(eventName, payload);
+    } else {
+        const redisEmitter = initializeEmitter();
+        redisEmitter.emit(eventName, payload);
+    }
     console.log(`[Socket] Cheating alert: ${teamName} - ${violationType} (${action})`);
 };
 
@@ -190,8 +207,6 @@ const broadcastCheatingViolation = (teamName, roundName, violationType, action, 
  * Broadcast disqualification status to a specific team
  */
 const broadcastDisqualificationUpdate = async (teamId, isDisqualified, roundId) => {
-    if (!io) return;
-
     try {
         const Team = require('./models/Team');
         const team = await Team.findById(teamId).select('teamName');
@@ -201,12 +216,17 @@ const broadcastDisqualificationUpdate = async (teamId, isDisqualified, roundId) 
 
         // Direct push to active team socket for instant UX.
         const activeSocketId = activeTeams.get(team._id.toString());
-        if (activeSocketId) {
+        if (activeSocketId && io) {
             io.to(activeSocketId).emit('team:disqualification-update', payload);
         }
 
         // Also broadcast globally for admin dashboards/other listeners.
-        io.emit('team:disqualification-update', payload);
+        if (io) {
+            io.emit('team:disqualification-update', payload);
+        } else {
+            const redisEmitter = initializeEmitter();
+            redisEmitter.emit('team:disqualification-update', payload);
+        }
         console.log(`[Socket] Disqualification update: ${team.teamName} -> ${isDisqualified}`);
     } catch (error) {
         console.error('[Socket] Error broadcasting disqualification update:', error);
@@ -217,20 +237,26 @@ const broadcastDisqualificationUpdate = async (teamId, isDisqualified, roundId) 
  * Broadcast sabotage attack to a specific team
  */
 const broadcastSabotageAttack = async (targetTeamId, attackerTeamName, sabotageType, endTime) => {
-    if (!io) return;
-
     try {
         const Team = require('./models/Team');
         const targetTeam = await Team.findById(targetTeamId).select('teamName');
         if (!targetTeam) return;
 
-        io.emit('team:sabotage', {
+        const eventName = 'team:sabotage';
+        const payload = {
             targetTeamName: targetTeam.teamName,
             attackerTeamName,
             type: sabotageType,
             endTime,
             timestamp: new Date(),
-        });
+        };
+
+        if (io) {
+            io.emit(eventName, payload);
+        } else {
+            const redisEmitter = initializeEmitter();
+            redisEmitter.emit(eventName, payload);
+        }
         console.log(`[Socket] Sabotage: ${sabotageType} from ${attackerTeamName} to ${targetTeam.teamName}`);
         await broadcastTeamStatsUpdate(targetTeamId);
     } catch (error) {
@@ -242,15 +268,22 @@ const broadcastSabotageAttack = async (targetTeamId, attackerTeamName, sabotageT
  * Broadcast round status update to all connected clients
  */
 const broadcastRoundUpdate = (round) => {
-    if (!io) return;
-    io.emit('round:update', {
+    const eventName = 'round:update';
+    const payload = {
         _id: round._id,
         name: round.name,
         status: round.status,
         startTime: round.startTime,
         endTime: round.endTime,
         duration: round.duration,
-    });
+    };
+
+    if (io) {
+        io.emit(eventName, payload);
+    } else {
+        const redisEmitter = initializeEmitter();
+        redisEmitter.emit(eventName, payload);
+    }
     console.log(`[Socket] Round update: ${round.name} (${round.status})`);
 };
 
