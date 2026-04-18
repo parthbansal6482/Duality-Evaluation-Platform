@@ -32,11 +32,11 @@ const submissionLimiter = createLimiter(60 * 1000, 5, 'submission');
 // 2. Moderate limit for "Run Code" (e.g., 10 per minute)
 const runLimiter = createLimiter(60 * 1000, 10, 'run');
 
-// 3. General API limiter (e.g., 100 per minute)
-const apiLimiter = createLimiter(60 * 1000, 100, 'api');
+// 3. General API limiter (e.g., 500 per minute)
+const apiLimiter = createLimiter(60 * 1000, 500, 'api');
 
-// 4. Auth limiter — protects login from brute force (10 per 15 min)
-const authLimiter = createLimiter(15 * 60 * 1000, 10, 'auth');
+// 4. Auth limiter — protects login from brute force (50 per 15 min)
+const authLimiter = createLimiter(15 * 60 * 1000, 50, 'auth');
 
 module.exports = {
     submissionLimiter,

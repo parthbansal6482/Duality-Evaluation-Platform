@@ -50,6 +50,7 @@ const dualityImportRoutes = require('./routes/duality/dualityImport.routes');
 
 // ── App setup ────────────────────────────────────────────────────────────────
 const app = express();
+app.set('trust proxy', 1); // Enable trust proxy for rate limiting behind Nginx/ALB
 const server = http.createServer(app);
 
 // CORS configuration
