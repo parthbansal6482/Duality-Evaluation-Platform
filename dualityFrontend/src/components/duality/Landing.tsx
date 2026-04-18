@@ -124,7 +124,7 @@ export function Landing({
 
               <div>
                 <h2 className="text-2xl font-bold text-white mb-3">
-                  Duality Extended
+                  Competition Mode
                 </h2>
                 <p className="text-gray-400 leading-relaxed">
                   Live team-based competition with real-time leaderboards, sabotage mechanics, and multi-round battles.

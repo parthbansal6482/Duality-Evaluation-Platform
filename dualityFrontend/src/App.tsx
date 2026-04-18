@@ -203,7 +203,7 @@ export default function App() {
     if (extendedView === 'select-role') {
       return (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', background: '#000', gap: '16px' }}>
-          <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 700, marginBottom: '8px' }}>Duality Extended</h2>
+          <h2 style={{ color: '#fff', fontSize: '1.5rem', fontWeight: 700, marginBottom: '8px' }}>Competition Mode</h2>
           <p style={{ color: '#888', marginBottom: '24px' }}>Select your role to continue</p>
           <div style={{ display: 'flex', gap: '16px' }}>
             <button

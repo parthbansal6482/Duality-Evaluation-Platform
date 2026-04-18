@@ -1,6 +1,13 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5001';
+const getSocketUrl = () => {
+    const apiUrl = import.meta.env.VITE_API_URL;
+    if (!apiUrl) return window.location.origin;
+    if (apiUrl.startsWith('/')) return window.location.origin;
+    return apiUrl.replace('/api', '');
+};
+
+const SOCKET_URL = getSocketUrl();
 
 class DualitySocketService {
     private socket: Socket | null = null;
